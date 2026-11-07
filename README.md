@@ -1,6 +1,6 @@
 # Bots and Bytes BIOBUZZ robot code
 
-Based on [Pedro Pathing QuickStart v3.0.1](https://github.com/Pedro-Pathing/Quickstart/releases/tag/v3.0.1) and the team's previous `decode` project. See [Pedro 3 migration notes](MIGRATION-PEDRO3.md) for the carried-over configuration, tuning requirements, and behavior changes. The team code still contains DECODE season field data and autonomous routines until they are retuned for BIOBUZZ.
+Based on [Pedro Pathing QuickStart v3.0.1](https://github.com/Pedro-Pathing/Quickstart/releases/tag/v3.0.1) and the team's previous `decode` project. The team code still contains DECODE season field data and autonomous routines until they are retuned for BIOBUZZ.
 
 ## NOTICE
 

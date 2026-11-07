@@ -11,7 +11,7 @@ import org.firstinspires.ftc.teamcode.robot.config.generated.config;
 import org.firstinspires.ftc.teamcode.utilities.Casablanca;
 
 /**
- * BIOBUZZ TeleOp. Controls are listed in teleop_controls.md; in short:
+ * BIOBUZZ TeleOp. Controls, in short:
  *
  * <p>Driver: sticks drive; X toggles facing the upward CELL; right trigger holds the shooting pose
  * for whichever CELL is up; left trigger holds the LOADING ZONE park pose; dpad left holds the
