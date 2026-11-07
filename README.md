@@ -1,6 +1,27 @@
 # Bots and Bytes BIOBUZZ robot code
 
-Based on [Pedro Pathing QuickStart v3.0.1](https://github.com/Pedro-Pathing/Quickstart/releases/tag/v3.0.1) and the team's previous `decode` project. The team code still contains DECODE season field data and autonomous routines until they are retuned for BIOBUZZ.
+AI agents: read [AGENTS.md](AGENTS.md) before changing anything.
+
+## What's unusual here
+
+- No constants in Java. Every gain, pose and timing is in `robot/config/config.yaml`, read through a generated typed `config` facade. Poses are written for RED; BLUE is `m`, the 180-degree rotation about the field centre.
+- Config is hot-pushed: change `config.yaml` and push it over ADB without rebuilding the APK. A pushed config from a different season is rejected.
+- Only `periodic()` writes hardware. Commands and OpModes set targets; a direct `setPower` elsewhere is overwritten the next loop.
+- The turret and shot gates are formally proven (OpenJML and Lean 4), and the proofs run with every build.
+- Autonomous routes are checked at build and push time, not on the robot: `AutoRouteSafetyTest` fails if a path hits the HIVE or crosses the centre line.
+- AI agents can drive the robot. An agent bridge in the robot app plus an MCP server (`tools/robot-mcp/`) let an agent run OpModes, play gamepad input and record hardware.
+- The [robot guide](doc/guide/README.md) (`doc/guide/index.html`) is generated from `config.yaml`.
+
+## Gradle tasks
+
+| Task | What it does |
+| --- | --- |
+| `./gradlew verifyBuild` | Everything a build checks (format, compile, tests, config symmetry, proofs) without deploying. |
+| `./gradlew generateConfig` | Regenerates the `config` facade after editing `config.yaml` or `config-docs.yaml`. |
+| `./gradlew pushConfig` | Runs the config safety tests, then pushes `config.yaml` to the robot. Re-init the OpMode to load it. |
+| `./gradlew resetConfig` | Deletes the pushed config so the robot uses the one in the APK. |
+
+Everything below is the FTC SDK's README, left unchanged so SDK updates merge cleanly.
 
 ## NOTICE
 
