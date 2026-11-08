@@ -2,7 +2,7 @@
 
 Instructions for AI coding agents (Claude Code, Codex, GitHub Copilot, Antigravity) working in this repository. This file is the single source: edit it directly. `CLAUDE.md` and `GEMINI.md` only import it, and shared skills live in `.agents/skills/`.
 
-Follow these coding and design standards in the `biobuzz` codebase:
+Follow these coding and design standards in the `biobuzz` codebase: Do not allow code to be run without all dependencies (mathlib & lake compiler, gradle plugins, MCP, etc).
 
 ## Coding Conventions
 1. **Dynamic Configuration Over Hardcoding**:
