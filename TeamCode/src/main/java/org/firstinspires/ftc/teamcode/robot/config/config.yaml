@@ -65,13 +65,27 @@ inventory:
   entry_debounce_ms: 40
 
 pedro:
+  drivetrain:
+    front_left_motor: "leftFront"
+    front_right_motor: "rightFront"
+    back_left_motor: "leftBack"
+    back_right_motor: "rightBack"
+    front_left_direction: "REVERSE"
+    front_right_direction: "FORWARD"
+    back_left_direction: "REVERSE"
+    back_right_direction: "FORWARD"
+
   localization:
-    x_pod_offset: 0.8827159160704124
-    y_pod_offset: -5.46341422974594
+    pinpoint_name: "pinpoint"
+    pod_type: "goBILDA_4_BAR_POD"
+    x_pod_offset: 5.992710984597995
+    y_pod_offset: 2.0555174820066435
+    x_pod_direction: "REVERSED"
+    y_pod_direction: "FORWARD"
 
   heading:
     pid:
-      p: 4.268315397151918
+      p: 4.63079224505145
       i: 0.0
       d: 0.0
     ks: 0.0
@@ -80,44 +94,43 @@ pedro:
     gain_threshold: 2.5
     forward:
       small_error_pid:
-        p: 0.11404309007001973
+        p: 0.10346597541226646
         i: 0.0
         d: 0.0
       large_error_pid:
-        p: 0.3086639721874311
+        p: 0.2800364225258117
         i: 0.0
         d: 0.0
     strafe:
       small_error_pid:
-        p: 0.14363321035423612
+        p: 0.18799620206757295
         i: 0.0
         d: 0.0
       large_error_pid:
-        p: 0.3887512800534528
+        p: 0.5088221868655121
         i: 0.0
         d: 0.0
 
   feedforward:
-    coast_kv: 0.012572883790573407
-    brake_kv: 0.010686951221987396
+    coast_kv: 0.013152357742346703
+    brake_kv: 0.011179504080994697
 
   braking:
     forward:
-      linear: 0.09843454130209381
-      quadratic: 0.0015787148084173775
+      linear: 0.07201164899249604
+      quadratic: 0.0016527316171941933
     strafe:
-      linear: 0.03541604034426723
-      quadratic: 0.0021434483056786057
+      linear: 0.07522256182774545
+      quadratic: 0.0014546791448056754
     heading:
-      linear: 0.053255031895873425
-      quadratic: 0.003792767934047215
+      linear: 0.05868623724838039
+      quadratic: 0.003643206177447418
 
   motion:
-    # Recheck on robot: this recovered forward velocity is unusually low (inches/second).
-    max_forward_velocity: 79.9698860197901
-    max_strafe_velocity: 64.77428818716172
-    natural_forward_deceleration: 38.68031215213687
-    natural_strafe_deceleration: 60.92227329307563
+    max_forward_velocity: 73.77716599587528
+    max_strafe_velocity: 60.89297355443779
+    natural_forward_deceleration: 37.18809054509802
+    natural_strafe_deceleration: 68.7071541560746
     # Explicit speed fraction; the old v2 PathConstraints 0.90 was a completion threshold.
     max_path_speed: 0.9
 
@@ -195,7 +208,10 @@ vision:
     left_in: 4.72
     height_in: 7.68
     yaw_deg: 0.0
-    pitch_up_deg: 50.0
+    # Fitted 2026-11-07 (Hive Vision Test): BLUE SCORING, known upward (59.6 in), read 50.8 in at
+    # 50 deg; 58.2 deg puts it at 59.6 in with height_in held at 7.68. Only one CELL was in view,
+    # so pitch and height_in are not separated: refit both when an up and a down CELL are seen together.
+    pitch_up_deg: 58.2
   relocalize:
     max_range_in: 72.0
     max_correction_in: 18.0
@@ -335,12 +351,18 @@ shooter:
   # clamped I; FlywheelClosedLoopProperties checks it across calibration error, battery and lag).
   # The firmware PIDF (motor_pidf) oscillated: its p was 150, ~68x REV's recipe for this F.
   use_ftc_pid: false
-  ks: 0.1811
+  # kS, pidf.f and kick.wheel_tau_sec from Shooter Characterization on 2026-11-07 (new 6000 rpm
+  # flywheel: 11-point fit RMS 0.006 power; full power reached 2600 ticks/s at 13.5 V).
+  ks: 0.0772
   nominal_voltage: 12.0
   max_voltage_compensation: 1.4
-  voltage_refresh_sec: 0.25
+  # A full-power kick sags the bus ~1.5 V. At 0.25 s a reading taken in the sag scaled the next
+  # quarter second ~12% hot and pushed a 1350->1700 recovery to 1.035x; 0.05 s held every recovery
+  # inside the feed band on the robot.
+  voltage_refresh_sec: 0.05
   # Every *_rpm value in this section is DcMotorEx.setVelocity units (encoder ticks/second).
-  max_rpm: 1500
+  # Target power 1.0 maps here: what full power reaches at nominal_voltage ((1 - kS) / kV).
+  max_rpm: 2300
   constant_rpm: 1000
   min_transfer_threshold: 0.97
   max_velocity_threshold: 1.03
@@ -358,10 +380,10 @@ shooter:
   # Higher gain tolerates less sensor lag and hides ball dips; a faster integral overshoots after
   # each ball. Chosen by sweep over kS +/-50%, kV +/-20%, 11.5-13.8 V, 0-2 loops of lag.
   pidf:
-    p: 0.0010125
-    i: 0.00050625
+    p: 0.000799
+    i: 0.0003995
     d: 0
-    f: 16.5881
+    f: 13.09
   # Only with use_ftc_pid: true. REV's recipe for this F: p = 0.1 F, i = 0.1 p.
   motor_pidf:
     p: 2.204
@@ -381,8 +403,11 @@ shooter:
   # predicted speed. No gain to tune: both times come from Shooter Characterization's step test.
   # wheel_tau_sec 0 disables the kick and the prediction (the loop above, unchanged).
   kick:
-    wheel_tau_sec: 0.0
-    sensor_lag_sec: 0.0
+    wheel_tau_sec: 0.276
+    # The step test fit 0.022 s, but with it the kick handed off a wheel already near target and
+    # overshot to 1.04-1.06x; the 50 Hz recorder fits 0.040 s on the same step (the hub velocity is
+    # a 50 ms count, 20 ticks/s steps). 0.045 s: no spin-up or recovery overshoot on the robot.
+    sensor_lag_sec: 0.045
     kick_lag_margin_sec: 0.0075
     kick_trigger_fraction: 0.09
     kick_speed_margin: 1.4

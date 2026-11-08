@@ -1,3 +1,39 @@
+front_left_motor:
+  desc: "Hardware map name of the front-left drive motor."
+
+front_right_motor:
+  desc: "Hardware map name of the front-right drive motor."
+
+back_left_motor:
+  desc: "Hardware map name of the back-left drive motor."
+
+back_right_motor:
+  desc: "Hardware map name of the back-right drive motor."
+
+front_left_direction:
+  desc: "DcMotorSimple.Direction (FORWARD or REVERSE) of the front-left drive motor, chosen so positive power drives the robot forward."
+
+front_right_direction:
+  desc: "DcMotorSimple.Direction (FORWARD or REVERSE) of the front-right drive motor, chosen so positive power drives the robot forward."
+
+back_left_direction:
+  desc: "DcMotorSimple.Direction (FORWARD or REVERSE) of the back-left drive motor, chosen so positive power drives the robot forward."
+
+back_right_direction:
+  desc: "DcMotorSimple.Direction (FORWARD or REVERSE) of the back-right drive motor, chosen so positive power drives the robot forward."
+
+pinpoint_name:
+  desc: "Hardware map name of the goBILDA Pinpoint odometry computer."
+
+pod_type:
+  desc: "GoBildaPinpointDriver.GoBildaOdometryPods constant for the odometry pods (goBILDA_4_BAR_POD or goBILDA_SWINGARM_POD)."
+
+x_pod_direction:
+  desc: "GoBildaPinpointDriver.EncoderDirection (FORWARD or REVERSED) of the forward (X) pod, chosen so driving forward increases X."
+
+y_pod_direction:
+  desc: "GoBildaPinpointDriver.EncoderDirection (FORWARD or REVERSED) of the strafe (Y) pod, chosen so strafing left increases Y."
+
 x_pod_offset:
   desc: "Forward odometry pod offset in inches, recovered from local Pedro 3 tuning."
 

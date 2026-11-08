@@ -183,7 +183,7 @@ class TuningFuzzProperties {
     Servo hood = mock(Servo.class, withSettings().stubOnly());
     when(map.get(DcMotorEx.class, "shooter")).thenReturn(first);
     when(map.get(DcMotorEx.class, "shooter2")).thenReturn(second);
-    when(map.get(Servo.class, "hood")).thenReturn(hood);
+    when(map.tryGet(Servo.class, "hood")).thenReturn(hood);
     map.voltageSensor = mock(HardwareMap.DeviceMapping.class, withSettings().stubOnly());
     VoltageSensor voltage = mock(VoltageSensor.class, withSettings().stubOnly());
     double bus = 9 + 5 * random.nextDouble();

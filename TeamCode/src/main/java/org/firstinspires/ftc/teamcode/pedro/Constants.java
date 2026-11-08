@@ -22,30 +22,32 @@ public final class Constants {
   private Constants() {}
 
   public static MecanumConfig drivetrainConfig() {
+    var d = config.pedro.drivetrain;
     return new MecanumConfig(
         c -> {
-          c.frontLeftName.set("leftFront");
-          c.backLeftName.set("leftBack");
-          c.frontRightName.set("rightFront");
-          c.backRightName.set("rightBack");
-          c.frontLeftDirection.set(DcMotorSimple.Direction.REVERSE);
-          c.backLeftDirection.set(DcMotorSimple.Direction.FORWARD);
-          c.frontRightDirection.set(DcMotorSimple.Direction.FORWARD);
-          c.backRightDirection.set(DcMotorSimple.Direction.FORWARD);
+          c.frontLeftName.set(d.front_left_motor);
+          c.frontRightName.set(d.front_right_motor);
+          c.backLeftName.set(d.back_left_motor);
+          c.backRightName.set(d.back_right_motor);
+          c.frontLeftDirection.set(DcMotorSimple.Direction.valueOf(d.front_left_direction));
+          c.frontRightDirection.set(DcMotorSimple.Direction.valueOf(d.front_right_direction));
+          c.backLeftDirection.set(DcMotorSimple.Direction.valueOf(d.back_left_direction));
+          c.backRightDirection.set(DcMotorSimple.Direction.valueOf(d.back_right_direction));
         });
   }
 
   public static PinpointConfig localizerConfig() {
+    var l = config.pedro.localization;
     return new PinpointConfig(
         c -> {
-          c.name.set("pinpoint");
-          c.xPodOffset.set(config.pedro.localization.x_pod_offset);
-          c.yPodOffset.set(config.pedro.localization.y_pod_offset);
+          c.name.set(l.pinpoint_name);
+          c.podType.set(GoBildaPinpointDriver.GoBildaOdometryPods.valueOf(l.pod_type));
+          c.xPodOffset.set(l.x_pod_offset);
+          c.yPodOffset.set(l.y_pod_offset);
+          c.xPodDirection.set(GoBildaPinpointDriver.EncoderDirection.valueOf(l.x_pod_direction));
+          c.yPodDirection.set(GoBildaPinpointDriver.EncoderDirection.valueOf(l.y_pod_direction));
           c.offsetUnits.set(DistanceUnit.INCH);
           c.globalDistanceUnit.set(DistanceUnit.INCH);
-          c.podType.set(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
-          c.xPodDirection.set(GoBildaPinpointDriver.EncoderDirection.REVERSED);
-          c.yPodDirection.set(GoBildaPinpointDriver.EncoderDirection.FORWARD);
         });
   }
 

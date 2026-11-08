@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.robot;
 
+import androidx.annotation.Nullable;
 import com.bylazar.configurables.annotations.Configurable;
 import com.pedropathing.controllers.PIDController;
 import com.qualcomm.robotcore.hardware.DcMotor;
@@ -18,7 +19,12 @@ public class Shooter {
 
   private final DcMotorEx shooter1;
   private final DcMotorEx shooter2;
-  private final Servo hood;
+
+  /**
+   * Null when the robot has no hood (fixed-angle shooter): hood targets are then kept, not sent.
+   */
+  @Nullable private final Servo hood;
+
   private final VoltageSensor voltageSensor;
   private final PIDController pidfController;
   private final AntiWindupIntegrator integrator = new AntiWindupIntegrator();
@@ -64,7 +70,7 @@ public class Shooter {
     voltageReadNanos = loopStartNanos;
     shooter1 = hardwareMap.get(DcMotorEx.class, "shooter");
     shooter2 = hardwareMap.get(DcMotorEx.class, "shooter2");
-    hood = hardwareMap.get(Servo.class, "hood");
+    hood = hardwareMap.tryGet(Servo.class, "hood");
     voltageSensor = hardwareMap.voltageSensor.iterator().next();
 
     DcMotor.RunMode initialMode =
@@ -135,8 +141,9 @@ public class Shooter {
     return targetHoodPosition;
   }
 
+  /** The hood servo's last commanded position, or the target when there is no hood. */
   public double getHoodPositionReadback() {
-    return hood.getPosition();
+    return hood != null ? hood.getPosition() : targetHoodPosition;
   }
 
   public static double constantPower() {
@@ -162,7 +169,9 @@ public class Shooter {
   }
 
   public void periodic() {
-    hood.setPosition(targetHoodPosition);
+    if (hood != null) {
+      hood.setPosition(targetHoodPosition);
+    }
     DcMotor.RunMode mode =
         config.shooter.use_ftc_pid
             ? DcMotor.RunMode.RUN_USING_ENCODER

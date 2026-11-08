@@ -29,7 +29,7 @@ public class ShooterWriterTest {
     hood = mock(Servo.class);
     when(map.get(DcMotorEx.class, "shooter")).thenReturn(first);
     when(map.get(DcMotorEx.class, "shooter2")).thenReturn(second);
-    when(map.get(Servo.class, "hood")).thenReturn(hood);
+    when(map.tryGet(Servo.class, "hood")).thenReturn(hood);
     map.voltageSensor = mock(HardwareMap.DeviceMapping.class);
     VoltageSensor voltage = mock(VoltageSensor.class);
     when(voltage.getVoltage()).thenReturn(12.0);
@@ -69,6 +69,27 @@ public class ShooterWriterTest {
     shooter.periodic();
     verify(hood).setPosition(position);
     verify(first).setVelocity(0.0);
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  public void runsWithoutAHood() {
+    HardwareMap map = mock(HardwareMap.class);
+    DcMotorEx a = mock(DcMotorEx.class);
+    DcMotorEx b = mock(DcMotorEx.class);
+    when(map.get(DcMotorEx.class, "shooter")).thenReturn(a);
+    when(map.get(DcMotorEx.class, "shooter2")).thenReturn(b);
+    map.voltageSensor = mock(HardwareMap.DeviceMapping.class);
+    VoltageSensor voltage = mock(VoltageSensor.class);
+    when(voltage.getVoltage()).thenReturn(12.0);
+    when(map.voltageSensor.iterator()).thenAnswer(inv -> List.of(voltage).iterator());
+    Shooter noHood = new Shooter(map);
+    double position = config.shooter.ballistics.max_hood_servo_pos;
+    noHood.setTargetHoodPosition(position);
+    noHood.setTargetPower(0.5);
+    noHood.periodic();
+    assertEquals(position, noHood.getHoodPositionReadback(), 0.0);
+    verify(a).setVelocity(config.shooter.max_rpm * 0.5);
   }
 
   @Test

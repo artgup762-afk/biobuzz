@@ -978,7 +978,7 @@ public class MathSafetyTest {
         Mockito.mock(com.qualcomm.robotcore.hardware.VoltageSensor.class);
     Mockito.when(hardwareMap.get(DcMotorEx.class, "shooter")).thenReturn(mockShooter1);
     Mockito.when(hardwareMap.get(DcMotorEx.class, "shooter2")).thenReturn(mockShooter2);
-    Mockito.when(hardwareMap.get(com.qualcomm.robotcore.hardware.Servo.class, "hood"))
+    Mockito.when(hardwareMap.tryGet(com.qualcomm.robotcore.hardware.Servo.class, "hood"))
         .thenReturn(mockHood);
     java.util.List<com.qualcomm.robotcore.hardware.VoltageSensor> sensors =
         java.util.Collections.singletonList(mockVoltage);

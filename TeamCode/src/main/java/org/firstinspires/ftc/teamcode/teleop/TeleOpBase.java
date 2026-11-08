@@ -19,6 +19,7 @@ import org.firstinspires.ftc.teamcode.game.FieldModel;
 import org.firstinspires.ftc.teamcode.game.HiveTracker;
 import org.firstinspires.ftc.teamcode.game.MatchClock;
 import org.firstinspires.ftc.teamcode.records.Alliance;
+import org.firstinspires.ftc.teamcode.records.HiveCell;
 import org.firstinspires.ftc.teamcode.records.MatchProfile;
 import org.firstinspires.ftc.teamcode.robot.Intake;
 import org.firstinspires.ftc.teamcode.robot.Robot;
@@ -389,6 +390,11 @@ public abstract class TeleOpBase extends OpMode {
     }
   }
 
+  /** AUDIENCE or SCORING: the side of the HIVE a CELL is on (matches the SDK cluster names). */
+  private static String cellSide(Alliance alliance, HiveCell cell) {
+    return (alliance == Alliance.RED) == (cell == HiveCell.A) ? "AUDIENCE" : "SCORING";
+  }
+
   private void addTelemetry() {
     boolean unlocked = clock.isFlowerUnlocked();
     if (parkAlertActive) {
@@ -403,15 +409,30 @@ public abstract class TeleOpBase extends OpMode {
             clock.remainingMs() / 60_000,
             (clock.remainingMs() / 1000) % 60,
             unlocked ? "  NECTAR->FLOWERS OK" : ""));
+    // The tracker holds its belief between sightings: the HIVE only changes on a TIP, so tags out
+    // of view mean no news, not "down". Each CELL's tag cluster names the CELL, so no pose is
+    // needed.
+    long agreedMs = hive.msSinceVisionAgreed();
     telemetryM.addData(
         "HIVE",
         String.format(
             Locale.ROOT,
-            "CELL %s up, %d TIPS (%s%s)",
+            "%s %s CELL (%s) up, %d TIPS, from %s%s",
+            profile.alliance(),
+            cellSide(profile.alliance(), hive.upCell()),
             hive.upCell(),
             hive.tips(),
             hive.source(),
             hive.isSettled() ? "" : ", settling"));
+    telemetryM.addData(
+        "HIVE camera",
+        String.format(
+            Locale.ROOT,
+            "%s tags in view; %s",
+            robot.tagsInView(),
+            agreedMs < 0
+                ? "camera has not confirmed it yet"
+                : String.format(Locale.ROOT, "confirmed %.1f s ago", agreedMs / 1000.0)));
     telemetryM.addData(
         "Human NECTAR allowed",
         String.format(

@@ -8,15 +8,18 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
-import com.qualcomm.robotcore.hardware.MotorControlAlgorithm;
-import com.qualcomm.robotcore.hardware.PIDFCoefficients;
 import com.qualcomm.robotcore.util.ElapsedTime;
+import org.firstinspires.ftc.teamcode.robot.config.generated.config;
+import org.firstinspires.ftc.teamcode.utilities.OpModeUtil;
 
 /**
- * Spins one or both flywheel motors at {@link #targetVelocity} and reports each motor's velocity,
- * peak velocity, and time to reach 95% of target.
+ * Runs one or both flywheel motors at {@link #targetVelocity} (encoder ticks/second) on the hub's
+ * velocity loop and reports the flywheel's velocity, peak velocity, and time to reach 95% of
+ * target. Each enabled motor closes the loop on its own encoder. Both motors turn one flywheel, so
+ * the flywheel speed is the faster of the two encoder readings.
  *
- * <p>Runs the hub's velocity loop with the SDK default gains, not {@code shooter.motor_pidf}.
+ * <p>The hub keeps whatever velocity PIDF was last written to it (e.g. {@code shooter.motor_pidf})
+ * until it is power-cycled; this test does not set one.
  *
  * <p>Controls: X stops the motors (latched), A restarts the run, Y resets the peak/timing stats.
  */
@@ -39,44 +42,30 @@ public class MaxVelocityTest extends LinearOpMode {
   public static boolean shooter1forward = true;
   public static boolean shooter2forward = false;
 
-  public static Double power = 1.0;
-  public static Double targetVelocity = 1000.0;
-
-  // SDK default velocity gains (the ExpansionHubMotorControllerVelocityParams on REV's motor
-  // types). Written explicitly because Shooter's shooter.motor_pidf stays on the hub across an app
-  // restart or deploy until the hub is power-cycled, and would otherwise be what this test runs
-  // with.
-  private static final PIDFCoefficients DEFAULT_VELOCITY_PIDF =
-      new PIDFCoefficients(10, 3, 0, 0, MotorControlAlgorithm.LegacyPID);
+  /** Velocity command for each enabled motor, encoder ticks/second. */
+  public static double targetVelocity = 1000.0;
 
   @Override
   public void runOpMode() throws InterruptedException {
-    org.firstinspires.ftc.teamcode.robot.config.generated.config.reload();
-    org.firstinspires.ftc.teamcode.utilities.OpModeUtil.reportConfig(telemetry);
-    ElapsedTime runtime = new ElapsedTime();
-    boolean running = true;
-    boolean time_recorded = false;
-    boolean time2_recorded = false;
-    String timeTaken = "0";
-    String timeTaken2 = "0";
-    double maxMotorVelocity = 0;
-    double maxMotor2Velocity = 0;
-
+    config.reload();
+    OpModeUtil.reportConfig(telemetry);
     TelemetryManager telemetryM = PanelsTelemetry.INSTANCE.getTelemetry();
 
-    DcMotorEx testMotor = hardwareMap.get(DcMotorEx.class, name);
-    DcMotorEx testMotor2 = hardwareMap.get(DcMotorEx.class, name2);
-    // FLOAT so a disabled motor coasts with the flywheel instead of braking against the other one.
-    testMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-    testMotor2.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-    testMotor.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, DEFAULT_VELOCITY_PIDF);
-    testMotor2.setPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER, DEFAULT_VELOCITY_PIDF);
-    PIDFCoefficients appliedPidf = testMotor.getPIDFCoefficients(DcMotor.RunMode.RUN_USING_ENCODER);
+    DcMotorEx motor1 = hardwareMap.get(DcMotorEx.class, name);
+    DcMotorEx motor2 = hardwareMap.get(DcMotorEx.class, name2);
+    for (DcMotorEx motor : new DcMotorEx[] {motor1, motor2}) {
+      // FLOAT so a disabled motor coasts with the flywheel instead of braking against the other.
+      motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+    }
+
+    ElapsedTime runtime = new ElapsedTime();
+    boolean running = true;
+    boolean timeRecorded = false;
+    String timeTaken = "-";
+    double peakVelocity = 0;
 
     waitForStart();
-
     if (isStopRequested()) return;
-
     runtime.reset();
 
     while (opModeIsActive()) {
@@ -86,59 +75,46 @@ public class MaxVelocityTest extends LinearOpMode {
       if (gamepad1.aWasPressed() && !running) {
         running = true;
         runtime.reset();
-        time_recorded = false;
-        time2_recorded = false;
+        timeRecorded = false;
+        timeTaken = "-";
       }
       if (gamepad1.yWasPressed()) {
         runtime.reset();
-        maxMotorVelocity = 0;
-        maxMotor2Velocity = 0;
-        time_recorded = false;
-        time2_recorded = false;
-        timeTaken = "0";
-        timeTaken2 = "0";
+        peakVelocity = 0;
+        timeRecorded = false;
+        timeTaken = "-";
       }
 
-      testMotor.setDirection(
+      motor1.setDirection(
           shooter1forward ? DcMotorSimple.Direction.FORWARD : DcMotorSimple.Direction.REVERSE);
-      testMotor2.setDirection(
+      motor2.setDirection(
           shooter2forward ? DcMotorSimple.Direction.FORWARD : DcMotorSimple.Direction.REVERSE);
 
       boolean motor1Enabled = running && enabled != EnabledMotors.SHOOTER2;
       boolean motor2Enabled = running && enabled != EnabledMotors.SHOOTER1;
-      drive(testMotor, motor1Enabled);
-      drive(testMotor2, motor2Enabled);
+      drive(motor1, motor1Enabled);
+      drive(motor2, motor2Enabled);
 
-      double motor_velocity = testMotor.getVelocity();
-      double motor2_velocity = testMotor2.getVelocity();
-      double error = targetVelocity - motor_velocity;
-      double error2 = targetVelocity - motor2_velocity;
+      double velocity1 = motor1.getVelocity();
+      double velocity2 = motor2.getVelocity();
+      double flywheelVelocity = Math.max(Math.abs(velocity1), Math.abs(velocity2));
+      peakVelocity = Math.max(peakVelocity, flywheelVelocity);
 
-      maxMotorVelocity = Math.max(maxMotorVelocity, motor_velocity);
-      maxMotor2Velocity = Math.max(maxMotor2Velocity, motor2_velocity);
-
-      if (motor1Enabled && motor_velocity > (targetVelocity * .95) && !time_recorded) {
+      if (running && !timeRecorded && flywheelVelocity >= 0.95 * targetVelocity) {
         timeTaken = runtime.toString();
-        time_recorded = true;
-      }
-
-      if (motor2Enabled && motor2_velocity > (targetVelocity * .95) && !time2_recorded) {
-        timeTaken2 = runtime.toString();
-        time2_recorded = true;
+        timeRecorded = true;
       }
 
       telemetryM.addData("Enabled", enabled);
       telemetryM.addData("Running", running);
-      telemetryM.addData("Velocity PIDF", appliedPidf);
       telemetryM.addData("Target Velocity", targetVelocity);
-      telemetryM.addData("Motor Velocity", motor_velocity);
-      telemetryM.addData("Motor Velocity Motor 2", motor2_velocity);
-      telemetryM.addData("Motor error", error);
-      telemetryM.addData("Motor error Motor 2", error2);
-      telemetryM.addData("Max Velocity", maxMotorVelocity);
-      telemetryM.addData("Max Velocity Motor 2", maxMotor2Velocity);
-      telemetryM.addData("time Taken", timeTaken);
-      telemetryM.addData("time Taken2", timeTaken2);
+      telemetryM.addData("Flywheel Velocity", flywheelVelocity);
+      telemetryM.addData("Peak Velocity", peakVelocity);
+      telemetryM.addData("Time to 95%", timeTaken);
+      telemetryM.addData(name + " encoder", velocity1);
+      telemetryM.addData(name2 + " encoder", velocity2);
+      telemetryM.addData(name + " power", motor1.getPower());
+      telemetryM.addData(name2 + " power", motor2.getPower());
       telemetryM.update();
     }
   }
@@ -153,8 +129,6 @@ public class MaxVelocityTest extends LinearOpMode {
       if (motor.getMode() != DcMotor.RunMode.RUN_USING_ENCODER) {
         motor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
       }
-      // A velocity (ticks/s), not a power: setPower(1000) clipped to full power, so this ran at the
-      // motor's top speed and the reported time-to-95% of targetVelocity meant nothing.
       motor.setVelocity(targetVelocity);
     } else {
       if (motor.getMode() != DcMotor.RunMode.RUN_WITHOUT_ENCODER) {

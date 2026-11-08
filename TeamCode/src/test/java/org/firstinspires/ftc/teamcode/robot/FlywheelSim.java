@@ -57,7 +57,7 @@ final class FlywheelSim {
     DcMotorEx second = mock(DcMotorEx.class, withSettings().stubOnly());
     when(map.get(DcMotorEx.class, "shooter")).thenReturn(first);
     when(map.get(DcMotorEx.class, "shooter2")).thenReturn(second);
-    when(map.get(Servo.class, "hood")).thenReturn(mock(Servo.class, withSettings().stubOnly()));
+    when(map.tryGet(Servo.class, "hood")).thenReturn(mock(Servo.class, withSettings().stubOnly()));
     @SuppressWarnings("unchecked")
     HardwareMap.DeviceMapping<VoltageSensor> sensors =
         mock(HardwareMap.DeviceMapping.class, withSettings().stubOnly());

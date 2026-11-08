@@ -162,6 +162,18 @@ public final class HiveVision {
     return sightings;
   }
 
+  /**
+   * The latest frame's raw detections (single tags and clusters, camera frame), for calibration and
+   * diagnostics; empty without a camera or while not streaming.
+   */
+  public List<AprilTagDetection> rawDetections() {
+    if (aprilTag == null || !streaming) {
+      return new ArrayList<>();
+    }
+    List<AprilTagDetection> detections = aprilTag.getDetections();
+    return detections == null ? new ArrayList<>() : detections;
+  }
+
   public void resumeStreaming() {
     if (visionPortal != null && !streaming) {
       try {
@@ -229,6 +241,32 @@ public final class HiveVision {
   public static boolean isFresh(CellSighting sighting, long nowMs, long maxAgeMs) {
     long ageMs = nowMs - sighting.capturedAtNanos() / 1_000_000L;
     return ageMs >= 0 && ageMs <= maxAgeMs;
+  }
+
+  /** Which alliance colours' CELL tags are in view. */
+  public enum TagsInView {
+    NONE,
+    RED,
+    BLUE,
+    BOTH
+  }
+
+  /**
+   * The colour whose tags are in view. A CELL's tags can only be seen from the side where that
+   * colour is up, so the colour seen is the colour that is up on the side the robot faces; seeing
+   * none says nothing (an angle or an obstruction can hide a tag). A colour counts as in view for
+   * {@code maxAgeMs} after it was last seen, so one dropped frame does not blank it.
+   *
+   * @param redSeenMs when RED tags were last seen, or null if never; same clock as {@code nowMs}
+   */
+  public static TagsInView tagsInView(
+      @Nullable Long redSeenMs, @Nullable Long blueSeenMs, long nowMs, long maxAgeMs) {
+    boolean red = redSeenMs != null && nowMs - redSeenMs <= maxAgeMs && nowMs >= redSeenMs;
+    boolean blue = blueSeenMs != null && nowMs - blueSeenMs <= maxAgeMs && nowMs >= blueSeenMs;
+    if (red && blue) {
+      return TagsInView.BOTH;
+    }
+    return red ? TagsInView.RED : blue ? TagsInView.BLUE : TagsInView.NONE;
   }
 
   /** Whether a sighted CELL opening is high enough to be the upward-facing CELL. */

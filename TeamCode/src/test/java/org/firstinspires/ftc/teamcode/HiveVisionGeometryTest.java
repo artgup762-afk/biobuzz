@@ -344,4 +344,18 @@ public class HiveVisionGeometryTest {
     assertFalse(HiveVision.isFresh(frame, 1401, 400));
     assertFalse(HiveVision.isFresh(frame, 999, 400));
   }
+
+  @Test
+  public void tagsInViewIsTheColourSeenWithinTheWindow() {
+    // Never seen, then each colour alone, then both, then everything too old.
+    assertEquals(HiveVision.TagsInView.NONE, HiveVision.tagsInView(null, null, 1000, 400));
+    assertEquals(HiveVision.TagsInView.BLUE, HiveVision.tagsInView(null, 900L, 1000, 400));
+    assertEquals(HiveVision.TagsInView.RED, HiveVision.tagsInView(700L, null, 1000, 400));
+    assertEquals(HiveVision.TagsInView.BOTH, HiveVision.tagsInView(700L, 900L, 1000, 400));
+    // Exactly maxAge old still counts; one ms older does not.
+    assertEquals(HiveVision.TagsInView.BLUE, HiveVision.tagsInView(599L, 600L, 1000, 400));
+    assertEquals(HiveVision.TagsInView.NONE, HiveVision.tagsInView(599L, 599L, 1000, 400));
+    // A frame stamped after now (clock mix-up) is not evidence.
+    assertEquals(HiveVision.TagsInView.NONE, HiveVision.tagsInView(null, 1001L, 1000, 400));
+  }
 }

@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode.robot;
 
+import androidx.annotation.Nullable;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.ivy.Scheduler;
 import com.pedropathing.math.Pose;
@@ -11,6 +12,7 @@ import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.game.FieldModel;
 import org.firstinspires.ftc.teamcode.game.HiveTracker;
 import org.firstinspires.ftc.teamcode.pedro.Constants;
+import org.firstinspires.ftc.teamcode.records.Alliance;
 import org.firstinspires.ftc.teamcode.records.MatchProfile;
 import org.firstinspires.ftc.teamcode.robot.config.generated.config;
 import org.firstinspires.ftc.teamcode.utilities.Casablanca;
@@ -38,6 +40,8 @@ public final class Robot {
 
   private boolean shutDown = false;
   private long lastVisionFrameNanos = Long.MIN_VALUE;
+  private @Nullable Long redTagsSeenMs = null;
+  private @Nullable Long blueTagsSeenMs = null;
 
   public Robot(HardwareMap hardwareMap, Telemetry telemetry, MatchProfile profile) {
     this.telemetry = telemetry;
@@ -114,11 +118,26 @@ public final class Robot {
         continue;
       }
       newestFrame = Math.max(newestFrame, s.capturedAtNanos());
+      long seenMs = s.capturedAtNanos() / 1_000_000L;
+      if (s.owner() == Alliance.RED) {
+        redTagsSeenMs = seenMs;
+      } else {
+        blueTagsSeenMs = seenMs;
+      }
       if (s.owner() == field.alliance()) {
         hive.observe(s.cell(), HiveVision.isUpward(s, threshold), s.capturedAtNanos() / 1_000_000L);
       }
     }
     lastVisionFrameNanos = newestFrame;
+  }
+
+  /**
+   * Which colour's CELL tags the camera has seen within {@code hive.max_observation_age_ms}: the
+   * colour that is up on the side the robot faces ({@link HiveVision#tagsInView}).
+   */
+  public HiveVision.TagsInView tagsInView() {
+    return HiveVision.tagsInView(
+        redTagsSeenMs, blueTagsSeenMs, nowMs(), config.hive.max_observation_age_ms);
   }
 
   /**

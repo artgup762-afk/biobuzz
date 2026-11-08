@@ -57,8 +57,20 @@ public final class config {
   public static String INVENTORY_ENTRY_SENSOR_NAME;
   public static boolean INVENTORY_ENTRY_SENSOR_ACTIVE_LOW;
   public static int INVENTORY_ENTRY_DEBOUNCE_MS;
+  public static String PEDRO_DRIVETRAIN_FRONT_LEFT_MOTOR;
+  public static String PEDRO_DRIVETRAIN_FRONT_RIGHT_MOTOR;
+  public static String PEDRO_DRIVETRAIN_BACK_LEFT_MOTOR;
+  public static String PEDRO_DRIVETRAIN_BACK_RIGHT_MOTOR;
+  public static String PEDRO_DRIVETRAIN_FRONT_LEFT_DIRECTION;
+  public static String PEDRO_DRIVETRAIN_FRONT_RIGHT_DIRECTION;
+  public static String PEDRO_DRIVETRAIN_BACK_LEFT_DIRECTION;
+  public static String PEDRO_DRIVETRAIN_BACK_RIGHT_DIRECTION;
+  public static String PEDRO_LOCALIZATION_PINPOINT_NAME;
+  public static String PEDRO_LOCALIZATION_POD_TYPE;
   public static double PEDRO_LOCALIZATION_X_POD_OFFSET;
   public static double PEDRO_LOCALIZATION_Y_POD_OFFSET;
+  public static String PEDRO_LOCALIZATION_X_POD_DIRECTION;
+  public static String PEDRO_LOCALIZATION_Y_POD_DIRECTION;
   public static double PEDRO_HEADING_PID_P;
   public static double PEDRO_HEADING_PID_I;
   public static double PEDRO_HEADING_PID_D;
@@ -395,8 +407,20 @@ public final class config {
     INVENTORY_ENTRY_SENSOR_NAME = inventory.entry_sensor_name;
     INVENTORY_ENTRY_SENSOR_ACTIVE_LOW = inventory.entry_sensor_active_low;
     INVENTORY_ENTRY_DEBOUNCE_MS = inventory.entry_debounce_ms;
+    PEDRO_DRIVETRAIN_FRONT_LEFT_MOTOR = pedro.drivetrain.front_left_motor;
+    PEDRO_DRIVETRAIN_FRONT_RIGHT_MOTOR = pedro.drivetrain.front_right_motor;
+    PEDRO_DRIVETRAIN_BACK_LEFT_MOTOR = pedro.drivetrain.back_left_motor;
+    PEDRO_DRIVETRAIN_BACK_RIGHT_MOTOR = pedro.drivetrain.back_right_motor;
+    PEDRO_DRIVETRAIN_FRONT_LEFT_DIRECTION = pedro.drivetrain.front_left_direction;
+    PEDRO_DRIVETRAIN_FRONT_RIGHT_DIRECTION = pedro.drivetrain.front_right_direction;
+    PEDRO_DRIVETRAIN_BACK_LEFT_DIRECTION = pedro.drivetrain.back_left_direction;
+    PEDRO_DRIVETRAIN_BACK_RIGHT_DIRECTION = pedro.drivetrain.back_right_direction;
+    PEDRO_LOCALIZATION_PINPOINT_NAME = pedro.localization.pinpoint_name;
+    PEDRO_LOCALIZATION_POD_TYPE = pedro.localization.pod_type;
     PEDRO_LOCALIZATION_X_POD_OFFSET = pedro.localization.x_pod_offset;
     PEDRO_LOCALIZATION_Y_POD_OFFSET = pedro.localization.y_pod_offset;
+    PEDRO_LOCALIZATION_X_POD_DIRECTION = pedro.localization.x_pod_direction;
+    PEDRO_LOCALIZATION_Y_POD_DIRECTION = pedro.localization.y_pod_direction;
     PEDRO_HEADING_PID_P = pedro.heading.pid.p;
     PEDRO_HEADING_PID_I = pedro.heading.pid.i;
     PEDRO_HEADING_PID_D = pedro.heading.pid.d;
@@ -885,12 +909,73 @@ public final class config {
   }
 
   public static final class Pedro {
+    public static final class Drivetrain {
+      /** Hardware map name of the front-left drive motor. */
+      public String front_left_motor;
+
+      /** Hardware map name of the front-right drive motor. */
+      public String front_right_motor;
+
+      /** Hardware map name of the back-left drive motor. */
+      public String back_left_motor;
+
+      /** Hardware map name of the back-right drive motor. */
+      public String back_right_motor;
+
+      /**
+       * DcMotorSimple.Direction (FORWARD or REVERSE) of the front-left drive motor, chosen so
+       * positive power drives the robot forward.
+       */
+      public String front_left_direction;
+
+      /**
+       * DcMotorSimple.Direction (FORWARD or REVERSE) of the front-right drive motor, chosen so
+       * positive power drives the robot forward.
+       */
+      public String front_right_direction;
+
+      /**
+       * DcMotorSimple.Direction (FORWARD or REVERSE) of the back-left drive motor, chosen so
+       * positive power drives the robot forward.
+       */
+      public String back_left_direction;
+
+      /**
+       * DcMotorSimple.Direction (FORWARD or REVERSE) of the back-right drive motor, chosen so
+       * positive power drives the robot forward.
+       */
+      public String back_right_direction;
+    }
+
+    public Drivetrain drivetrain;
+
     public static final class Localization {
+      /** Hardware map name of the goBILDA Pinpoint odometry computer. */
+      public String pinpoint_name;
+
+      /**
+       * GoBildaPinpointDriver.GoBildaOdometryPods constant for the odometry pods (goBILDA_4_BAR_POD
+       * or goBILDA_SWINGARM_POD).
+       */
+      public String pod_type;
+
       /** Forward odometry pod offset in inches, recovered from local Pedro 3 tuning. */
       public double x_pod_offset;
 
       /** Strafe odometry pod offset in inches, recovered from local Pedro 3 tuning. */
       public double y_pod_offset;
+
+      /**
+       * GoBildaPinpointDriver.EncoderDirection (FORWARD or REVERSED) of the forward (X) pod, chosen
+       * so driving forward increases X.
+       */
+      public String x_pod_direction;
+
+      /**
+       * GoBildaPinpointDriver.EncoderDirection (FORWARD or REVERSED) of the strafe (Y) pod, chosen
+       * so strafing left increases Y.
+       */
+      public String y_pod_direction;
     }
 
     public Localization localization;
