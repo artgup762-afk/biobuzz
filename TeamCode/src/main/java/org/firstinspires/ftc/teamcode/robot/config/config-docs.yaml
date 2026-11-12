@@ -1,3 +1,18 @@
+short_stage_timeout_s:
+  desc: "On-robot deadline after START for Foresight velocity, deceleration, step-response measurements and the bounded line, turn and curve tests; stops drive independently of Wi-Fi."
+  min: 1.0
+  max: 15.0
+
+validation_turn_degrees:
+  desc: "Default signed heading target for the bounded turn-and-return validation. Positive turns left; negative turns right. The test holds the target for the first half of the short-stage window, then returns to the starting heading."
+  min: -180.0
+  max: 180.0
+
+braking_stage_timeout_s:
+  desc: "On-robot deadline after START for the complete multi-trial Foresight braking measurement; aborts and stops drive independently of Wi-Fi."
+  min: 1.0
+  max: 120.0
+
 front_left_motor:
   desc: "Hardware map name of the front-left drive motor."
 
@@ -85,7 +100,7 @@ quadratic:
   desc: "Quadratic coefficient in Foresight stopping displacement: linear * velocity + quadratic * velocity * abs(velocity). Translation uses inches and heading uses radians."
 
 max_forward_velocity:
-  desc: "Forward velocity in inches per second recovered verbatim from local tuning; unusually low, verify on robot."
+  desc: "Measured maximum forward body velocity in inches per second from the Foresight velocity trial."
   min: 0.0
 
 max_strafe_velocity:

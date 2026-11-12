@@ -46,6 +46,7 @@ public final class Tuning {
     return new Tests(
         h -> fresh(() -> new Mecanum(h, Constants.drivetrainConfig())),
         h -> fresh(() -> new PinpointLocalizer(h, Constants.localizerConfig())),
-        () -> fresh(() -> new Foresight(Constants.foresightConfig())));
+        () -> fresh(() -> new Foresight(Constants.foresightConfig())),
+        h -> fresh(() -> Constants.create(h)));
   }
 }

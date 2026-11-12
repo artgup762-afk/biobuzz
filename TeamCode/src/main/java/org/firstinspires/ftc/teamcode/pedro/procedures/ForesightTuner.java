@@ -12,6 +12,7 @@ import com.pedropathing.utils.Angle;
 import com.pedropathing.utils.Utils;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.util.ElapsedTime;
+import org.firstinspires.ftc.teamcode.robot.config.generated.config;
 
 import java.util.*;
 import java.util.function.Function;
@@ -20,6 +21,7 @@ import static com.pedropathing.utils.Utils.linearFit;
 import static com.pedropathing.utils.Utils.quadraticFit;
 
 public class ForesightTuner extends Procedure {
+    public enum Stage { FULL, STRAFE_BRAKING, FORWARD_TRANSLATIONAL, STRAFE_TRANSLATIONAL, HEADING }
     Function<HardwareMap, Localizer> localizerFunction;
     Function<HardwareMap, Drivetrain> drivetrainFunction;
 
@@ -31,6 +33,40 @@ public class ForesightTuner extends Procedure {
 
     @Override
     public void run() throws InterruptedException {
+        Inputs selection = inputs("Stage", "Run the full calibration or repeat one measurement.");
+        Inputs.Field<Stage> selected = selection.e("Stage", Stage.class).withDefault(Stage.FULL);
+        awaitInputs(selection);
+        if (selected.get() != Stage.FULL) {
+            config.reload();
+            switch (selected.get()) {
+                case STRAFE_BRAKING -> {
+                    Inputs input = inputs("Distance", "Lateral braking travel in inches (at least 15).");
+                    Inputs.Field<Double> distance = input.d("Distance").withDefault(36.0);
+                    awaitInputs(input);
+                    var values = step(new StrafeBraking(localizerFunction, drivetrainFunction,
+                            config.pedro.braking.heading.linear, config.pedro.braking.heading.quadratic,
+                            config.pedro.heading.pid.p, Math.max(distance.get(), 15.0)));
+                    result("strafeBrakingLinearCoefficient", measured("Strafe Braking", "linear", values.get(0), false));
+                    result("strafeBrakingQuadraticCoefficient", measured("Strafe Braking", "quadratic", values.get(1), false));
+                }
+                case FORWARD_TRANSLATIONAL -> {
+                    var values = step(new ForwardTranslational(localizerFunction, drivetrainFunction));
+                    result("forwardTranslational Primary kP", measured("Forward Translational", "primary kP", values.get(0), true));
+                    result("forwardTranslational Secondary kP", measured("Forward Translational", "secondary kP", values.get(1), true));
+                    result("coast kV", measured("Forward Translational", "coast kV", values.get(2), true));
+                    result("brake kV", measured("Forward Translational", "brake kV", values.get(3), true));
+                }
+                case STRAFE_TRANSLATIONAL -> {
+                    var values = step(new StrafeTranslational(localizerFunction, drivetrainFunction));
+                    result("strafeTranslational Primary kP", measured("Strafe Translational", "primary kP", values.get(0), true));
+                    result("strafeTranslational Secondary kP", measured("Strafe Translational", "secondary kP", values.get(1), true));
+                }
+                case HEADING -> result("heading kP", measured("Heading Tuner", "kP",
+                        step(new HeadingTuner(localizerFunction, drivetrainFunction)), true));
+                default -> throw new IllegalStateException("Unexpected stage");
+            }
+            return;
+        }
         Inputs distanceInput = inputs("Distance", "The distance to drive in inches for the Max Achievable Forward and Strafe Identifiers");
         Inputs.Field<Double> distance = distanceInput.d("Distance").withDefault(48.0);
         awaitInputs(distanceInput);
@@ -182,43 +218,51 @@ class ForwardVelocity extends TuningOpMode<Double> {
     protected Double runTuningOpMode() throws InterruptedException {
         Localizer localizer = localizerFunction.apply(hardwareMap);
         Drivetrain drivetrain = drivetrainFunction.apply(hardwareMap);
+        try {
+            boolean end = false;
 
-        boolean end = false;
-
-        localizer.setPose(Pose.zero());
-        localizer.update();
-
-        DrivePowers power = new DrivePowers(1,0,0);
-
-        for (int i = 0; i < RECORD_NUMBER; i++) {
-            velocities.add(0.0);
-        }
-
-        Thread.sleep(1000);
-        waitForStart();
-        localizer.setPose(Pose.zero());
-        localizer.update();
-
-        while (!end) {
+            localizer.setPose(Pose.zero());
             localizer.update();
-            if (Math.abs(localizer.pose().x()) > distance) {
-                end = true;
-                drivetrain.stop();
-            } else {
-                drivetrain.drive(power, true);
-                double currentVelocity = Math.abs(localizer.twist().toVector2D().x());
-                velocities.addLast(currentVelocity);
-                velocities.removeFirst();
-            }
-        }
 
-        drivetrain.stop();
-        double average = 0;
-        for (double velocity : velocities) {
-                average += velocity;
+            DrivePowers power = new DrivePowers(1,0,0);
+
+            for (int i = 0; i < RECORD_NUMBER; i++) {
+                velocities.add(0.0);
+            }
+
+            Thread.sleep(1000);
+            waitForStart();
+            ElapsedTime stageTimer = new ElapsedTime();
+            if (isStopRequested()) throw new InterruptedException("Tuning stopped");
+            localizer.setPose(Pose.zero());
+            localizer.update();
+
+            while (!end) {
+                if (isStopRequested()) throw new InterruptedException("Tuning stopped");
+                if (stageTimer.seconds() >= config.pedro.tuning.short_stage_timeout_s)
+                    throw new IllegalStateException("ForwardVelocity exceeded its on-robot deadline");
+                localizer.update();
+                if (Math.abs(localizer.pose().x()) > distance) {
+                    end = true;
+                    drivetrain.stop();
+                } else {
+                    drivetrain.drive(power, true);
+                    double currentVelocity = Math.abs(localizer.twist().toVector2D().x());
+                    velocities.addLast(currentVelocity);
+                    velocities.removeFirst();
+                }
+            }
+
+            drivetrain.stop();
+            double average = 0;
+            for (double velocity : velocities) {
+                    average += velocity;
+            }
+            average /= velocities.size();
+            return average;
+        } finally {
+            drivetrain.stop();
         }
-        average /= velocities.size();
-        return average;
     }
 }
 
@@ -240,43 +284,51 @@ class StrafeVelocity extends TuningOpMode<Double> {
     protected Double runTuningOpMode() throws InterruptedException {
         Localizer localizer = localizerFunction.apply(hardwareMap);
         Drivetrain drivetrain = drivetrainFunction.apply(hardwareMap);
+        try {
+            boolean end = false;
 
-        boolean end = false;
-
-        localizer.setPose(Pose.zero());
-        localizer.update();
-
-        DrivePowers power = new DrivePowers(0,1,0);
-
-        for (int i = 0; i < RECORD_NUMBER; i++) {
-            velocities.add(0.0);
-        }
-
-        Thread.sleep(1000);
-        waitForStart();
-        localizer.setPose(Pose.zero());
-        localizer.update();
-
-        while (!end) {
+            localizer.setPose(Pose.zero());
             localizer.update();
-            if (Math.abs(localizer.pose().y()) > distance) {
-                end = true;
-                drivetrain.stop();
-            } else {
-                drivetrain.drive(power, false);
-                double currentVelocity = Math.abs(localizer.twist().toVector2D().y());
-                velocities.addLast(currentVelocity);
-                velocities.removeFirst();
-            }
-        }
 
-        drivetrain.stop();
-        double average = 0;
-        for (double velocity : velocities) {
-            average += velocity;
+            DrivePowers power = new DrivePowers(0,1,0);
+
+            for (int i = 0; i < RECORD_NUMBER; i++) {
+                velocities.add(0.0);
+            }
+
+            Thread.sleep(1000);
+            waitForStart();
+            ElapsedTime stageTimer = new ElapsedTime();
+            if (isStopRequested()) throw new InterruptedException("Tuning stopped");
+            localizer.setPose(Pose.zero());
+            localizer.update();
+
+            while (!end) {
+                if (isStopRequested()) throw new InterruptedException("Tuning stopped");
+                if (stageTimer.seconds() >= config.pedro.tuning.short_stage_timeout_s)
+                    throw new IllegalStateException("StrafeVelocity exceeded its on-robot deadline");
+                localizer.update();
+                if (Math.abs(localizer.pose().y()) > distance) {
+                    end = true;
+                    drivetrain.stop();
+                } else {
+                    drivetrain.drive(power, false);
+                    double currentVelocity = Math.abs(localizer.twist().toVector2D().y());
+                    velocities.addLast(currentVelocity);
+                    velocities.removeFirst();
+                }
+            }
+
+            drivetrain.stop();
+            double average = 0;
+            for (double velocity : velocities) {
+                average += velocity;
+            }
+            average /= velocities.size();
+            return average;
+        } finally {
+            drivetrain.stop();
         }
-        average /= velocities.size();
-        return average;
     }
 }
 
@@ -303,74 +355,85 @@ class ForwardDeceleration extends TuningOpMode<Double> {
     protected Double runTuningOpMode() throws InterruptedException {
         Localizer localizer = localizerFunction.apply(hardwareMap);
         Drivetrain drivetrain = drivetrainFunction.apply(hardwareMap);
+        try {
+            accelerations.clear();
+            previousVelocity = 0;
+            previousTimeNano = 0;
+            stopping = false;
 
-        accelerations.clear();
-        previousVelocity = 0;
-        previousTimeNano = 0;
-        stopping = false;
-
-        localizer.setPose(Pose.zero());
-        localizer.update();
-
-        DrivePowers power = new DrivePowers(1, 0, 0);
-        Thread.sleep(1000);
-        waitForStart();
-        localizer.setPose(Pose.zero());
-        localizer.update();
-
-        drivetrain.drive(power, false);
-
-        while (!stopping) {
+            localizer.setPose(Pose.zero());
             localizer.update();
-            double currentVelocity = localizer.twist().toVector2D().x();
-            if (Math.abs(currentVelocity) > velocity) {
-                previousVelocity = currentVelocity;
-                previousTimeNano = System.nanoTime();
 
-                stopping = true;
+            DrivePowers power = new DrivePowers(1, 0, 0);
+            Thread.sleep(1000);
+            waitForStart();
+            ElapsedTime stageTimer = new ElapsedTime();
+            if (isStopRequested()) throw new InterruptedException("Tuning stopped");
+            localizer.setPose(Pose.zero());
+            localizer.update();
+
+            drivetrain.drive(power, false);
+
+            while (!stopping) {
+                if (isStopRequested()) throw new InterruptedException("Tuning stopped");
+                if (stageTimer.seconds() >= config.pedro.tuning.short_stage_timeout_s)
+                    throw new IllegalStateException("ForwardDeceleration exceeded its on-robot deadline");
+                localizer.update();
+                double currentVelocity = localizer.twist().toVector2D().x();
+                if (Math.abs(currentVelocity) > velocity) {
+                    previousVelocity = currentVelocity;
+                    previousTimeNano = System.nanoTime();
+
+                    stopping = true;
+                    drivetrain.stop(false);
+                } else {
+                    drivetrain.drive(power, false);
+                }
+            }
+
+            boolean end = false;
+
+            while (!end) {
+                if (isStopRequested()) throw new InterruptedException("Tuning stopped");
+                if (stageTimer.seconds() >= config.pedro.tuning.short_stage_timeout_s)
+                    throw new IllegalStateException("ForwardDeceleration exceeded its on-robot deadline");
+                localizer.update();
                 drivetrain.stop(false);
-            } else {
-                drivetrain.drive(power, false);
+                double currentVelocity = localizer.twist().toVector2D().x();
+                long currentTimeNano = System.nanoTime();
+                double dt = (currentTimeNano - previousTimeNano) / 1e9;
+
+                if (dt > 0) {
+                    double acceleration = (currentVelocity - previousVelocity) / dt;
+                    accelerations.add(acceleration);
+                }
+
+                previousVelocity = currentVelocity;
+                previousTimeNano = currentTimeNano;
+
+                if (Math.abs(currentVelocity) <= 1) {
+                    end = true;
+                }
             }
-        }
 
-        boolean end = false;
-
-        while (!end) {
-            localizer.update();
             drivetrain.stop(false);
-            double currentVelocity = localizer.twist().toVector2D().x();
-            long currentTimeNano = System.nanoTime();
-            double dt = (currentTimeNano - previousTimeNano) / 1e9;
 
-            if (dt > 0) {
-                double acceleration = (currentVelocity - previousVelocity) / dt;
-                accelerations.add(acceleration);
+            double average = 0;
+
+            for (double acceleration : accelerations) {
+                average += acceleration;
             }
 
-            previousVelocity = currentVelocity;
-            previousTimeNano = currentTimeNano;
-
-            if (Math.abs(currentVelocity) <= 1) {
-                end = true;
+            if (accelerations.isEmpty()) {
+                return 0.0;
             }
+
+            average /= accelerations.size();
+
+            return Math.abs(average);
+        } finally {
+            drivetrain.stop();
         }
-
-        drivetrain.stop(false);
-
-        double average = 0;
-
-        for (double acceleration : accelerations) {
-            average += acceleration;
-        }
-
-        if (accelerations.isEmpty()) {
-            return 0.0;
-        }
-
-        average /= accelerations.size();
-
-        return Math.abs(average);
     }
 }
 
@@ -397,74 +460,85 @@ class StrafeDeceleration extends TuningOpMode<Double> {
     protected Double runTuningOpMode() throws InterruptedException {
         Localizer localizer = localizerFunction.apply(hardwareMap);
         Drivetrain drivetrain = drivetrainFunction.apply(hardwareMap);
+        try {
+            accelerations.clear();
+            previousVelocity = 0;
+            previousTimeNano = 0;
+            stopping = false;
 
-        accelerations.clear();
-        previousVelocity = 0;
-        previousTimeNano = 0;
-        stopping = false;
-
-        localizer.setPose(Pose.zero());
-        localizer.update();
-
-        DrivePowers power = new DrivePowers(0, 1, 0);
-        Thread.sleep(1000);
-        waitForStart();
-        localizer.setPose(Pose.zero());
-        localizer.update();
-
-        drivetrain.drive(power, false);
-
-        while (!stopping) {
+            localizer.setPose(Pose.zero());
             localizer.update();
-            double currentVelocity = localizer.twist().toVector2D().y();
-            if (Math.abs(currentVelocity) > velocity) {
-                previousVelocity = currentVelocity;
-                previousTimeNano = System.nanoTime();
 
-                stopping = true;
+            DrivePowers power = new DrivePowers(0, 1, 0);
+            Thread.sleep(1000);
+            waitForStart();
+            ElapsedTime stageTimer = new ElapsedTime();
+            if (isStopRequested()) throw new InterruptedException("Tuning stopped");
+            localizer.setPose(Pose.zero());
+            localizer.update();
+
+            drivetrain.drive(power, false);
+
+            while (!stopping) {
+                if (isStopRequested()) throw new InterruptedException("Tuning stopped");
+                if (stageTimer.seconds() >= config.pedro.tuning.short_stage_timeout_s)
+                    throw new IllegalStateException("StrafeDeceleration exceeded its on-robot deadline");
+                localizer.update();
+                double currentVelocity = localizer.twist().toVector2D().y();
+                if (Math.abs(currentVelocity) > velocity) {
+                    previousVelocity = currentVelocity;
+                    previousTimeNano = System.nanoTime();
+
+                    stopping = true;
+                    drivetrain.stop(false);
+                } else {
+                    drivetrain.drive(power, false);
+                }
+            }
+
+            boolean end = false;
+
+            while (!end) {
+                if (isStopRequested()) throw new InterruptedException("Tuning stopped");
+                if (stageTimer.seconds() >= config.pedro.tuning.short_stage_timeout_s)
+                    throw new IllegalStateException("StrafeDeceleration exceeded its on-robot deadline");
                 drivetrain.stop(false);
-            } else {
-                drivetrain.drive(power, false);
+                localizer.update();
+                double currentVelocity = localizer.twist().toVector2D().y();
+                long currentTimeNano = System.nanoTime();
+                double dt = (currentTimeNano - previousTimeNano) / 1e9;
+
+                if (dt > 0) {
+                    double acceleration = (currentVelocity - previousVelocity) / dt;
+                    accelerations.add(acceleration);
+                }
+
+                previousVelocity = currentVelocity;
+                previousTimeNano = currentTimeNano;
+
+                if (Math.abs(currentVelocity) <= 1) {
+                    end = true;
+                }
             }
-        }
 
-        boolean end = false;
-
-        while (!end) {
             drivetrain.stop(false);
-            localizer.update();
-            double currentVelocity = localizer.twist().toVector2D().y();
-            long currentTimeNano = System.nanoTime();
-            double dt = (currentTimeNano - previousTimeNano) / 1e9;
 
-            if (dt > 0) {
-                double acceleration = (currentVelocity - previousVelocity) / dt;
-                accelerations.add(acceleration);
+            double average = 0;
+
+            for (double acceleration : accelerations) {
+                average += acceleration;
             }
 
-            previousVelocity = currentVelocity;
-            previousTimeNano = currentTimeNano;
-
-            if (Math.abs(currentVelocity) <= 1) {
-                end = true;
+            if (accelerations.isEmpty()) {
+                return 0.0;
             }
+
+            average /= accelerations.size();
+
+            return Math.abs(average);
+        } finally {
+            drivetrain.stop();
         }
-
-        drivetrain.stop(false);
-
-        double average = 0;
-
-        for (double acceleration : accelerations) {
-            average += acceleration;
-        }
-
-        if (accelerations.isEmpty()) {
-            return 0.0;
-        }
-
-        average /= accelerations.size();
-
-        return Math.abs(average);
     }
 }
 
@@ -506,83 +580,91 @@ class HeadingBraking extends TuningOpMode<List<Double>> {
     protected List<Double> runTuningOpMode() throws InterruptedException {
         Localizer localizer = localizerFunction.apply(hardwareMap);
         Drivetrain drivetrain = drivetrainFunction.apply(hardwareMap);
-
-        localizer.setPose(Pose.zero());
-        localizer.update();
-
-        List<Double> coefficients = Collections.emptyList();
-
-        POWERS = biasedGradient(trials, maxPower, minPower, bias);
-
-        Thread.sleep(1000);
-        waitForStart();
-        localizer.setPose(Pose.zero());
-        localizer.update();
-        timer.reset();
-
-        while (state != State.DONE && !isStopRequested()) {
+        try {
+            localizer.setPose(Pose.zero());
             localizer.update();
-            double currentHeading = localizer.pose().heading();
-            totalHeading += Angle.normalizeSigned(currentHeading - previousHeading);
-            previousHeading = currentHeading;
 
-            direction = (iteration % 2 == 0) ? 1 : -1;
-            if (iteration < POWERS.length) {
-                power = POWERS[iteration];
-            }
+            List<Double> coefficients = Collections.emptyList();
 
-//            if (state != State.DONE) {
-//                double voltage = voltageSensor.getVoltage();
-//                double duty = state == State.BRAKE ? -brakingPower * direction: power * direction;
-//                double appliedVoltage = voltage * duty;
-//            }
+            POWERS = biasedGradient(trials, maxPower, minPower, bias);
 
-            switch (state) {
-                case DRIVE: {
-                    if (timer.seconds() > 2) {
-                        startHeading = totalHeading;
-                        measuredVelocity = Math.abs(localizer.velocity().omega);
+            Thread.sleep(1000);
+            waitForStart();
+            ElapsedTime stageTimer = new ElapsedTime();
+            if (isStopRequested()) throw new InterruptedException("Tuning stopped");
+            localizer.setPose(Pose.zero());
+            localizer.update();
+            timer.reset();
 
-                        drivetrain.drive(new DrivePowers(0.0, 0.0, -brakingPower * direction), false);
-                        state = State.BRAKE;
-                        timer.reset();
+            while (state != State.DONE) {
+                if (isStopRequested()) throw new InterruptedException("Tuning stopped");
+                if (stageTimer.seconds() >= config.pedro.tuning.braking_stage_timeout_s)
+                    throw new IllegalStateException("HeadingBraking exceeded its on-robot deadline");
+                localizer.update();
+                double currentHeading = localizer.pose().heading();
+                totalHeading += Angle.normalizeSigned(currentHeading - previousHeading);
+                previousHeading = currentHeading;
+
+                direction = (iteration % 2 == 0) ? 1 : -1;
+                if (iteration < POWERS.length) {
+                    power = POWERS[iteration];
+                }
+
+    //            if (state != State.DONE) {
+    //                double voltage = voltageSensor.getVoltage();
+    //                double duty = state == State.BRAKE ? -brakingPower * direction: power * direction;
+    //                double appliedVoltage = voltage * duty;
+    //            }
+
+                switch (state) {
+                    case DRIVE: {
+                        if (timer.seconds() > 2) {
+                            startHeading = totalHeading;
+                            measuredVelocity = Math.abs(localizer.velocity().omega);
+
+                            drivetrain.drive(new DrivePowers(0.0, 0.0, -brakingPower * direction), false);
+                            state = State.BRAKE;
+                            timer.reset();
+                            break;
+                        }
+                        drivetrain.drive(new DrivePowers(0.0, 0.0, power * direction), false);
                         break;
                     }
-                    drivetrain.drive(new DrivePowers(0.0, 0.0, power * direction), false);
-                    break;
-                }
-                case BRAKE: {
-                    if (Math.abs(localizer.velocity().omega) > 0.001 && timer.seconds() < MAX_BRAKE_TIME) {
-                        drivetrain.drive(new DrivePowers(0.0, 0.0, -brakingPower * direction), false);
+                    case BRAKE: {
+                        if (Math.abs(localizer.velocity().omega) > 0.001 && timer.seconds() < MAX_BRAKE_TIME) {
+                            drivetrain.drive(new DrivePowers(0.0, 0.0, -brakingPower * direction), false);
+                            break;
+                        }
+
+                        double endHeading = totalHeading;
+                        double brakingDistance = Math.abs(endHeading - startHeading);
+
+                        velocityToBrakingDistance.add(new double[]{measuredVelocity, brakingDistance});
+
+                        iteration++;
+
+                        if (iteration >= POWERS.length) {
+                            drivetrain.stop();
+
+                            double[] c = quadraticFit(velocityToBrakingDistance);
+                            coefficients = List.of(c[0], c[1]);
+
+                            state = State.DONE;
+                        } else {
+                            timer.reset();
+                            state = State.DRIVE;
+                        }
                         break;
                     }
-
-                    double endHeading = totalHeading;
-                    double brakingDistance = Math.abs(endHeading - startHeading);
-
-                    velocityToBrakingDistance.add(new double[]{measuredVelocity, brakingDistance});
-
-                    iteration++;
-
-                    if (iteration >= POWERS.length) {
-                        drivetrain.stop();
-
-                        double[] c = quadraticFit(velocityToBrakingDistance);
-                        coefficients = List.of(c[0], c[1]);
-
-                        state = State.DONE;
-                    } else {
-                        timer.reset();
-                        state = State.DRIVE;
-                    }
-                    break;
+                    case DONE: {}
                 }
-                case DONE: {}
             }
+
+
+            return coefficients;
+        } finally {
+            drivetrain.stop();
         }
-
-
-        return coefficients;
     }
 
     private enum State {
@@ -643,52 +725,60 @@ class HeadingTuner extends TuningOpMode<Double> {
     protected Double runTuningOpMode() throws InterruptedException {
         Localizer localizer = localizerFunction.apply(hardwareMap);
         Drivetrain drivetrain = drivetrainFunction.apply(hardwareMap);
-
-        localizer.setPose(Pose.zero());
-        localizer.update();
-
-        times.clear();
-        velocities.clear();
-        done = false;
-        vMax = 0;
-        lastTime = 0.0;
-
-        Thread.sleep(1000);
-        waitForStart();
-        localizer.setPose(Pose.zero());
-        localizer.update();
-        timer.reset();
-        lastTime = timer.seconds();
-        drivetrain.drive(new DrivePowers(0.0, 0.0, POWER), false);
-
-        while (!done && !isStopRequested()) {
-            double now = timer.seconds();
-            double dt = now - lastTime;
-            if (dt <= 0) dt = 1e-6;
-            lastTime = now;
-
+        try {
+            localizer.setPose(Pose.zero());
             localizer.update();
 
-            if (!done) {
-                times.add(timer.seconds());
+            times.clear();
+            velocities.clear();
+            done = false;
+            vMax = 0;
+            lastTime = 0.0;
 
-                double turnVel = Math.abs(localizer.velocity().omega);
-                vMax = Math.max(vMax, turnVel / POWER);
+            Thread.sleep(1000);
+            waitForStart();
+            ElapsedTime stageTimer = new ElapsedTime();
+            if (isStopRequested()) throw new InterruptedException("Tuning stopped");
+            localizer.setPose(Pose.zero());
+            localizer.update();
+            timer.reset();
+            lastTime = timer.seconds();
+            drivetrain.drive(new DrivePowers(0.0, 0.0, POWER), false);
 
-                velocities.add(turnVel);
+            while (!done) {
+                if (isStopRequested()) throw new InterruptedException("Tuning stopped");
+                if (stageTimer.seconds() >= config.pedro.tuning.short_stage_timeout_s)
+                    throw new IllegalStateException("HeadingTuner exceeded its on-robot deadline");
+                double now = timer.seconds();
+                double dt = now - lastTime;
+                if (dt <= 0) dt = 1e-6;
+                lastTime = now;
 
-                if (timer.seconds() >= RUNTIME) {
-                    done = true;
-                    systemIdentification();
-                    drivetrain.drive(new DrivePowers(0.0, 0.0, 0.0), false);
-                } else {
-                    drivetrain.drive(new DrivePowers(0.0, 0.0, POWER), false);
+                localizer.update();
+
+                if (!done) {
+                    times.add(timer.seconds());
+
+                    double turnVel = Math.abs(localizer.velocity().omega);
+                    vMax = Math.max(vMax, turnVel / POWER);
+
+                    velocities.add(turnVel);
+
+                    if (timer.seconds() >= RUNTIME) {
+                        done = true;
+                        systemIdentification();
+                        drivetrain.drive(new DrivePowers(0.0, 0.0, 0.0), false);
+                    } else {
+                        drivetrain.drive(new DrivePowers(0.0, 0.0, POWER), false);
+                    }
                 }
             }
-        }
 
-        drivetrain.drive(new DrivePowers(0.0, 0.0, 0.0), true);
-        return calculatekP(ALPHA);
+            drivetrain.drive(new DrivePowers(0.0, 0.0, 0.0), true);
+            return calculatekP(ALPHA);
+        } finally {
+            drivetrain.stop();
+        }
     }
 
     private double calculatekP(double alpha) {
@@ -777,73 +867,81 @@ class ForwardBraking extends TuningOpMode<List<Double>> {
     protected List<Double> runTuningOpMode() throws InterruptedException {
         Localizer localizer = localizerFunction.apply(hardwareMap);
         Drivetrain drivetrain = drivetrainFunction.apply(hardwareMap);
-
-        localizer.setPose(Pose.zero());
-        localizer.update();
-
-        POWERS = biasedGradient(trials, maxPower, minPower, bias);
-
-        List<Double> coefficients = Collections.emptyList();
-
-        Thread.sleep(1000);
-        waitForStart();
-        localizer.setPose(Pose.zero());
-        localizer.update();
-        timer.reset();
-
-        drivetrain.drive(new DrivePowers(maxPower,0,0), false);
-
-        while (state != State.DONE && !isStopRequested()) {
+        try {
+            localizer.setPose(Pose.zero());
             localizer.update();
-            if (Math.abs(localizer.pose().x()) > distance + OVERRUN || Math.abs(localizer.pose().y()) > DRIFT) {
-                drivetrain.stop();
-                throw new IllegalStateException(String.format(Locale.US,
-                        "stopped the robot at (%.0f, %.0f): more than %.0f in past the test's ends or %.0f in across them",
-                        localizer.pose().x(), localizer.pose().y(), OVERRUN, DRIFT));
-            }
-            direction = (iteration % 2 == 0) ? 1 : -1;
-            if (iteration < POWERS.length) {
-                power = POWERS[iteration];
-            }
 
-            switch (state) {
-                case DRIVE: {
-                    if ((direction > 0 && Math.abs(localizer.pose().x()) >= distance) || (direction < 0 && Math.abs(localizer.pose().x()) <= 12)) {
-                        startPosition = localizer.pose().toVector2D();
-                        measuredVelocity = localizer.velocity().toVector2D().magnitude();
+            POWERS = biasedGradient(trials, maxPower, minPower, bias);
 
-                        brake(drivetrain, localizer);
-                        state = State.BRAKE;
-                        timer.reset();
-                        break;
-                    }
-                    drive(drivetrain, localizer);
-                    break;
-                }
-                case BRAKE: {
-                    if (localizer.velocity().toVector2D().x() * direction > 0.25 && timer.seconds() < MAX_BRAKE_TIME) {
-                        brake(drivetrain, localizer);
-                        break;
-                    }
+            List<Double> coefficients = Collections.emptyList();
 
-                    collectTrialData(localizer, drivetrain);
-                    break;
-                }
-                case WAIT: {
+            Thread.sleep(1000);
+            waitForStart();
+            ElapsedTime stageTimer = new ElapsedTime();
+            if (isStopRequested()) throw new InterruptedException("Tuning stopped");
+            localizer.setPose(Pose.zero());
+            localizer.update();
+            timer.reset();
+
+            drivetrain.drive(new DrivePowers(maxPower,0,0), false);
+
+            while (state != State.DONE) {
+                if (isStopRequested()) throw new InterruptedException("Tuning stopped");
+                if (stageTimer.seconds() >= config.pedro.tuning.braking_stage_timeout_s)
+                    throw new IllegalStateException("ForwardBraking exceeded its on-robot deadline");
+                localizer.update();
+                if (Math.abs(localizer.pose().x()) > distance + OVERRUN || Math.abs(localizer.pose().y()) > DRIFT) {
                     drivetrain.stop();
-                    if (timer.seconds() > IDLE_SECONDS) state = State.DRIVE;
-                    break;
+                    throw new IllegalStateException(String.format(Locale.US,
+                            "stopped the robot at (%.0f, %.0f): more than %.0f in past the test's ends or %.0f in across them",
+                            localizer.pose().x(), localizer.pose().y(), OVERRUN, DRIFT));
                 }
-                case DONE: {}
+                direction = (iteration % 2 == 0) ? 1 : -1;
+                if (iteration < POWERS.length) {
+                    power = POWERS[iteration];
+                }
+
+                switch (state) {
+                    case DRIVE: {
+                        if ((direction > 0 && Math.abs(localizer.pose().x()) >= distance) || (direction < 0 && Math.abs(localizer.pose().x()) <= 12)) {
+                            startPosition = localizer.pose().toVector2D();
+                            measuredVelocity = localizer.velocity().toVector2D().magnitude();
+
+                            brake(drivetrain, localizer);
+                            state = State.BRAKE;
+                            timer.reset();
+                            break;
+                        }
+                        drive(drivetrain, localizer);
+                        break;
+                    }
+                    case BRAKE: {
+                        if (localizer.velocity().toVector2D().x() * direction > 0.25 && timer.seconds() < MAX_BRAKE_TIME) {
+                            brake(drivetrain, localizer);
+                            break;
+                        }
+
+                        collectTrialData(localizer, drivetrain);
+                        break;
+                    }
+                    case WAIT: {
+                        drivetrain.stop();
+                        if (timer.seconds() > IDLE_SECONDS) state = State.DRIVE;
+                        break;
+                    }
+                    case DONE: {}
+                }
             }
-        }
 
-        if (state == State.DONE) {
-            double[] c = quadraticFit(velocityToBrakingDistance);
-            coefficients = List.of(c[0], c[1]);
-        }
+            if (state == State.DONE) {
+                double[] c = quadraticFit(velocityToBrakingDistance);
+                coefficients = List.of(c[0], c[1]);
+            }
 
-        return coefficients;
+            return coefficients;
+        } finally {
+            drivetrain.stop();
+        }
     }
 
     private double getHeadingPower(Localizer localizer) {
@@ -955,74 +1053,82 @@ class StrafeBraking extends TuningOpMode<List<Double>> {
     protected List<Double> runTuningOpMode() throws InterruptedException {
         Localizer localizer = localizerFunction.apply(hardwareMap);
         Drivetrain drivetrain = drivetrainFunction.apply(hardwareMap);
-
-        localizer.setPose(Pose.zero());
-        localizer.update();
-
-        POWERS = biasedGradient(trials, maxPower, minPower, bias);
-
-        List<Double> coefficients = Collections.emptyList();
-
-        Thread.sleep(1000);
-        waitForStart();
-        localizer.setPose(Pose.zero());
-        localizer.update();
-        timer.reset();
-
-        drivetrain.drive(new DrivePowers(0,maxPower,0), false);
-
-        while (state != State.DONE && !isStopRequested()) {
+        try {
+            localizer.setPose(Pose.zero());
             localizer.update();
-            if (Math.abs(localizer.pose().y()) > distance + OVERRUN || Math.abs(localizer.pose().x()) > DRIFT) {
-                drivetrain.stop();
-                throw new IllegalStateException(String.format(Locale.US,
-                        "stopped the robot at (%.0f, %.0f): more than %.0f in past the test's ends or %.0f in across them",
-                        localizer.pose().x(), localizer.pose().y(), OVERRUN, DRIFT));
-            }
-            direction = (iteration % 2 == 0) ? 1 : -1;
-            if (iteration < POWERS.length) {
-                power = POWERS[iteration];
-            }
 
-            switch (state) {
-                case DRIVE: {
-                    if ((direction > 0 && Math.abs(localizer.pose().y()) > distance) ||
-                            (direction < 0 && Math.abs(localizer.pose().y()) <= 6)) {
-                        startPosition = localizer.pose().toVector2D();
-                        measuredVelocity = localizer.velocity().toVector2D().magnitude();
+            POWERS = biasedGradient(trials, maxPower, minPower, bias);
 
-                        brake(drivetrain, localizer);
-                        state = State.BRAKE;
-                        timer.reset();
-                        break;
-                    }
-                    drive(drivetrain, localizer);
-                    break;
-                }
-                case BRAKE: {
-                    if (localizer.velocity().toVector2D().y() * direction > 0.25 && timer.seconds() < MAX_BRAKE_TIME) {
-                        brake(drivetrain, localizer);
-                        break;
-                    }
+            List<Double> coefficients = Collections.emptyList();
 
-                    collectTrialData(localizer, drivetrain);
-                    break;
-                }
-                case WAIT: {
+            Thread.sleep(1000);
+            waitForStart();
+            ElapsedTime stageTimer = new ElapsedTime();
+            if (isStopRequested()) throw new InterruptedException("Tuning stopped");
+            localizer.setPose(Pose.zero());
+            localizer.update();
+            timer.reset();
+
+            drivetrain.drive(new DrivePowers(0,maxPower,0), false);
+
+            while (state != State.DONE) {
+                if (isStopRequested()) throw new InterruptedException("Tuning stopped");
+                if (stageTimer.seconds() >= config.pedro.tuning.braking_stage_timeout_s)
+                    throw new IllegalStateException("StrafeBraking exceeded its on-robot deadline");
+                localizer.update();
+                if (Math.abs(localizer.pose().y()) > distance + OVERRUN || Math.abs(localizer.pose().x()) > DRIFT) {
                     drivetrain.stop();
-                    if (timer.seconds() > IDLE_SECONDS) state = State.DRIVE;
-                    break;
+                    throw new IllegalStateException(String.format(Locale.US,
+                            "stopped the robot at (%.0f, %.0f): more than %.0f in past the test's ends or %.0f in across them",
+                            localizer.pose().x(), localizer.pose().y(), OVERRUN, DRIFT));
                 }
-                case DONE: {}
+                direction = (iteration % 2 == 0) ? 1 : -1;
+                if (iteration < POWERS.length) {
+                    power = POWERS[iteration];
+                }
+
+                switch (state) {
+                    case DRIVE: {
+                        if ((direction > 0 && Math.abs(localizer.pose().y()) > distance) ||
+                                (direction < 0 && Math.abs(localizer.pose().y()) <= 6)) {
+                            startPosition = localizer.pose().toVector2D();
+                            measuredVelocity = localizer.velocity().toVector2D().magnitude();
+
+                            brake(drivetrain, localizer);
+                            state = State.BRAKE;
+                            timer.reset();
+                            break;
+                        }
+                        drive(drivetrain, localizer);
+                        break;
+                    }
+                    case BRAKE: {
+                        if (localizer.velocity().toVector2D().y() * direction > 0.25 && timer.seconds() < MAX_BRAKE_TIME) {
+                            brake(drivetrain, localizer);
+                            break;
+                        }
+
+                        collectTrialData(localizer, drivetrain);
+                        break;
+                    }
+                    case WAIT: {
+                        drivetrain.stop();
+                        if (timer.seconds() > IDLE_SECONDS) state = State.DRIVE;
+                        break;
+                    }
+                    case DONE: {}
+                }
             }
-        }
 
-        if (state == State.DONE) {
-            double[] c = quadraticFit(velocityToBrakingDistance);
-            coefficients = List.of(c[0], c[1]);
-        }
+            if (state == State.DONE) {
+                double[] c = quadraticFit(velocityToBrakingDistance);
+                coefficients = List.of(c[0], c[1]);
+            }
 
-        return coefficients;
+            return coefficients;
+        } finally {
+            drivetrain.stop();
+        }
     }
 
     private double getHeadingPower(Localizer localizer) {
@@ -1120,57 +1226,65 @@ class ForwardTranslational extends TuningOpMode<List<Double>> {
     protected List<Double> runTuningOpMode() throws InterruptedException {
         Localizer localizer = localizerFunction.apply(hardwareMap);
         Drivetrain drivetrain = drivetrainFunction.apply(hardwareMap);
-
-        localizer.setPose(Pose.zero());
-        localizer.update();
-
-        times.clear();
-        velocities.clear();
-        done = false;
-        vMax = 0;
-        lastTime = 0.0;
-
-        Thread.sleep(1000);
-        waitForStart();
-        localizer.setPose(Pose.zero());
-        localizer.update();
-        timer.reset();
-        lastTime = timer.seconds();
-        drivetrain.drive(new DrivePowers(POWER, 0.0, 0.0), false);
-
-        while (!done && !isStopRequested()) {
-            double now = timer.seconds();
-            double dt = now - lastTime;
-            if (dt <= 0) dt = 1e-6;
-            lastTime = now;
-
+        try {
+            localizer.setPose(Pose.zero());
             localizer.update();
 
-            if (!done) {
-                times.add(timer.seconds());
+            times.clear();
+            velocities.clear();
+            done = false;
+            vMax = 0;
+            lastTime = 0.0;
 
-                double forwardVelocity = Math.abs(localizer.twist().toVector2D().x());
-                vMax = Math.max(vMax, forwardVelocity / POWER);
+            Thread.sleep(1000);
+            waitForStart();
+            ElapsedTime stageTimer = new ElapsedTime();
+            if (isStopRequested()) throw new InterruptedException("Tuning stopped");
+            localizer.setPose(Pose.zero());
+            localizer.update();
+            timer.reset();
+            lastTime = timer.seconds();
+            drivetrain.drive(new DrivePowers(POWER, 0.0, 0.0), false);
 
-                velocities.add(forwardVelocity);
+            while (!done) {
+                if (isStopRequested()) throw new InterruptedException("Tuning stopped");
+                if (stageTimer.seconds() >= config.pedro.tuning.short_stage_timeout_s)
+                    throw new IllegalStateException("ForwardTranslational exceeded its on-robot deadline");
+                double now = timer.seconds();
+                double dt = now - lastTime;
+                if (dt <= 0) dt = 1e-6;
+                lastTime = now;
 
-                if (timer.seconds() >= RUNTIME) {
-                    done = true;
-                    systemIdentification();
-                    drivetrain.drive(new DrivePowers(0.0, 0.0, 0.0), false);
-                } else {
-                    drivetrain.drive(new DrivePowers(POWER, 0.0, 0.0), false);
+                localizer.update();
+
+                if (!done) {
+                    times.add(timer.seconds());
+
+                    double forwardVelocity = Math.abs(localizer.twist().toVector2D().x());
+                    vMax = Math.max(vMax, forwardVelocity / POWER);
+
+                    velocities.add(forwardVelocity);
+
+                    if (timer.seconds() >= RUNTIME) {
+                        done = true;
+                        systemIdentification();
+                        drivetrain.drive(new DrivePowers(0.0, 0.0, 0.0), false);
+                    } else {
+                        drivetrain.drive(new DrivePowers(POWER, 0.0, 0.0), false);
+                    }
                 }
             }
+
+            drivetrain.drive(new DrivePowers(0.0, 0.0, 0.0), true);
+
+            double kP_large = calculatekP(ALPHA_LARGE);
+            double kP_small = calculatekP(ALPHA_SMALL);
+
+            //  kP_large, kP_small, coast kV, and brake kV (scaled by aggressiveness factor)
+            return List.of(kP_large, kP_small, kV, kV * VEL_AGGRESSIVENESS);
+        } finally {
+            drivetrain.stop();
         }
-
-        drivetrain.drive(new DrivePowers(0.0, 0.0, 0.0), true);
-
-        double kP_large = calculatekP(ALPHA_LARGE);
-        double kP_small = calculatekP(ALPHA_SMALL);
-
-        //  kP_large, kP_small, coast kV, and brake kV (scaled by aggressiveness factor)
-        return List.of(kP_large, kP_small, kV, kV * VEL_AGGRESSIVENESS);
     }
 
     private double calculatekP(double alpha) {
@@ -1244,56 +1358,64 @@ class StrafeTranslational extends TuningOpMode<List<Double>> {
     protected List<Double> runTuningOpMode() throws InterruptedException {
         Localizer localizer = localizerFunction.apply(hardwareMap);
         Drivetrain drivetrain = drivetrainFunction.apply(hardwareMap);
-
-        localizer.setPose(Pose.zero());
-        localizer.update();
-
-        times.clear();
-        velocities.clear();
-        done = false;
-        vMax = 0;
-        lastTime = 0.0;
-
-        Thread.sleep(1000);
-        waitForStart();
-        localizer.setPose(Pose.zero());
-        localizer.update();
-        timer.reset();
-        lastTime = timer.seconds();
-        drivetrain.drive(new DrivePowers(0.0, POWER, 0.0), false);
-
-        while (!done && !isStopRequested()) {
-            double now = timer.seconds();
-            double dt = now - lastTime;
-            if (dt <= 0) dt = 1e-6;
-            lastTime = now;
-
+        try {
+            localizer.setPose(Pose.zero());
             localizer.update();
 
-            if (!done) {
-                times.add(timer.seconds());
+            times.clear();
+            velocities.clear();
+            done = false;
+            vMax = 0;
+            lastTime = 0.0;
 
-                double lateralVelocity = Math.abs(localizer.twist().toVector2D().y());
-                vMax = Math.max(vMax, lateralVelocity / POWER);
+            Thread.sleep(1000);
+            waitForStart();
+            ElapsedTime stageTimer = new ElapsedTime();
+            if (isStopRequested()) throw new InterruptedException("Tuning stopped");
+            localizer.setPose(Pose.zero());
+            localizer.update();
+            timer.reset();
+            lastTime = timer.seconds();
+            drivetrain.drive(new DrivePowers(0.0, POWER, 0.0), false);
 
-                velocities.add(lateralVelocity);
+            while (!done) {
+                if (isStopRequested()) throw new InterruptedException("Tuning stopped");
+                if (stageTimer.seconds() >= config.pedro.tuning.short_stage_timeout_s)
+                    throw new IllegalStateException("StrafeTranslational exceeded its on-robot deadline");
+                double now = timer.seconds();
+                double dt = now - lastTime;
+                if (dt <= 0) dt = 1e-6;
+                lastTime = now;
 
-                if (timer.seconds() >= RUNTIME) {
-                    done = true;
-                    systemIdentification();
-                    drivetrain.drive(new DrivePowers(0.0, 0.0, 0.0), false);
-                } else {
-                    drivetrain.drive(new DrivePowers(0.0, POWER, 0.0), false);
+                localizer.update();
+
+                if (!done) {
+                    times.add(timer.seconds());
+
+                    double lateralVelocity = Math.abs(localizer.twist().toVector2D().y());
+                    vMax = Math.max(vMax, lateralVelocity / POWER);
+
+                    velocities.add(lateralVelocity);
+
+                    if (timer.seconds() >= RUNTIME) {
+                        done = true;
+                        systemIdentification();
+                        drivetrain.drive(new DrivePowers(0.0, 0.0, 0.0), false);
+                    } else {
+                        drivetrain.drive(new DrivePowers(0.0, POWER, 0.0), false);
+                    }
                 }
             }
+
+            drivetrain.drive(new DrivePowers(0.0, 0.0, 0.0), true);
+
+            double kP_large = calculatekP(ALPHA_LARGE);
+            double kP_small = calculatekP(ALPHA_SMALL);
+
+            return List.of(kP_large, kP_small);
+        } finally {
+            drivetrain.stop();
         }
-
-        drivetrain.drive(new DrivePowers(0.0, 0.0, 0.0), true);
-
-        double kP_large = calculatekP(ALPHA_LARGE);
-        double kP_small = calculatekP(ALPHA_SMALL);
-
-        return List.of(kP_large, kP_small);
     }
 
     private double calculatekP(double alpha) {

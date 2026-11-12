@@ -57,6 +57,9 @@ public final class config {
   public static String INVENTORY_ENTRY_SENSOR_NAME;
   public static boolean INVENTORY_ENTRY_SENSOR_ACTIVE_LOW;
   public static int INVENTORY_ENTRY_DEBOUNCE_MS;
+  public static double PEDRO_TUNING_SHORT_STAGE_TIMEOUT_S;
+  public static double PEDRO_TUNING_BRAKING_STAGE_TIMEOUT_S;
+  public static double PEDRO_TUNING_VALIDATION_TURN_DEGREES;
   public static String PEDRO_DRIVETRAIN_FRONT_LEFT_MOTOR;
   public static String PEDRO_DRIVETRAIN_FRONT_RIGHT_MOTOR;
   public static String PEDRO_DRIVETRAIN_BACK_LEFT_MOTOR;
@@ -407,6 +410,9 @@ public final class config {
     INVENTORY_ENTRY_SENSOR_NAME = inventory.entry_sensor_name;
     INVENTORY_ENTRY_SENSOR_ACTIVE_LOW = inventory.entry_sensor_active_low;
     INVENTORY_ENTRY_DEBOUNCE_MS = inventory.entry_debounce_ms;
+    PEDRO_TUNING_SHORT_STAGE_TIMEOUT_S = pedro.tuning.short_stage_timeout_s;
+    PEDRO_TUNING_BRAKING_STAGE_TIMEOUT_S = pedro.tuning.braking_stage_timeout_s;
+    PEDRO_TUNING_VALIDATION_TURN_DEGREES = pedro.tuning.validation_turn_degrees;
     PEDRO_DRIVETRAIN_FRONT_LEFT_MOTOR = pedro.drivetrain.front_left_motor;
     PEDRO_DRIVETRAIN_FRONT_RIGHT_MOTOR = pedro.drivetrain.front_right_motor;
     PEDRO_DRIVETRAIN_BACK_LEFT_MOTOR = pedro.drivetrain.back_left_motor;
@@ -909,6 +915,30 @@ public final class config {
   }
 
   public static final class Pedro {
+    public static final class Tuning {
+      /**
+       * On-robot deadline after START for Foresight velocity, deceleration, step-response
+       * measurements and the bounded line, turn and curve tests; stops drive independently of
+       * Wi-Fi. Minimum: 1.0 Maximum: 15.0
+       */
+      public double short_stage_timeout_s;
+
+      /**
+       * On-robot deadline after START for the complete multi-trial Foresight braking measurement;
+       * aborts and stops drive independently of Wi-Fi. Minimum: 1.0 Maximum: 120.0
+       */
+      public double braking_stage_timeout_s;
+
+      /**
+       * Default signed heading target for the bounded turn-and-return validation. Positive turns
+       * left; negative turns right. The test holds the target for the first half of the short-stage
+       * window, then returns to the starting heading. Minimum: -180.0 Maximum: 180.0
+       */
+      public double validation_turn_degrees;
+    }
+
+    public Tuning tuning;
+
     public static final class Drivetrain {
       /** Hardware map name of the front-left drive motor. */
       public String front_left_motor;
@@ -1102,8 +1132,8 @@ public final class config {
 
     public static final class Motion {
       /**
-       * Forward velocity in inches per second recovered verbatim from local tuning; unusually low,
-       * verify on robot. Minimum: 0.0
+       * Measured maximum forward body velocity in inches per second from the Foresight velocity
+       * trial. Minimum: 0.0
        */
       public double max_forward_velocity;
 

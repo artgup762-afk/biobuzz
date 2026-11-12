@@ -65,6 +65,10 @@ inventory:
   entry_debounce_ms: 40
 
 pedro:
+  tuning:
+    short_stage_timeout_s: 6.0
+    braking_stage_timeout_s: 70.0
+    validation_turn_degrees: 90.0
   drivetrain:
     front_left_motor: "leftFront"
     front_right_motor: "rightFront"
@@ -85,7 +89,7 @@ pedro:
 
   heading:
     pid:
-      p: 4.63079224505145
+      p: 5.77104718
       i: 0.0
       d: 0.0
     ks: 0.0
@@ -94,45 +98,49 @@ pedro:
     gain_threshold: 2.5
     forward:
       small_error_pid:
-        p: 0.10346597541226646
+        # Refined with repeated 10/12-inch endpoint trials on 2026-11-11.
+        p: 0.28
         i: 0.0
         d: 0.0
       large_error_pid:
-        p: 0.2800364225258117
+        p: 0.336690633
         i: 0.0
         d: 0.0
     strafe:
       small_error_pid:
-        p: 0.18799620206757295
+        # Refined on turn, curve and straight-line endpoint checks on 2026-11-11.
+        p: 0.35
         i: 0.0
         d: 0.0
       large_error_pid:
-        p: 0.5088221868655121
+        p: 0.598928941
         i: 0.0
         d: 0.0
 
   feedforward:
-    coast_kv: 0.013152357742346703
-    brake_kv: 0.011179504080994697
+    coast_kv: 0.0143895151
+    brake_kv: 0.0122310878
 
   braking:
     forward:
-      linear: 0.07201164899249604
-      quadratic: 0.0016527316171941933
+      # Closed-loop curve validation: earlier braking than the initial plant fit.
+      linear: 0.18
+      quadratic: 0.000985767102
     strafe:
-      linear: 0.07522256182774545
-      quadratic: 0.0014546791448056754
+      linear: 0.0616962691
+      quadratic: 0.00180027583
     heading:
-      linear: 0.05868623724838039
-      quadratic: 0.003643206177447418
+      # Validated with repeated +/-90-degree turn-and-return tests.
+      linear: 0.075
+      quadratic: 0.000336377129
 
   motion:
-    max_forward_velocity: 73.77716599587528
-    max_strafe_velocity: 60.89297355443779
-    natural_forward_deceleration: 37.18809054509802
-    natural_strafe_deceleration: 68.7071541560746
-    # Explicit speed fraction; the old v2 PathConstraints 0.90 was a completion threshold.
-    max_path_speed: 0.9
+    max_forward_velocity: 72.7643946
+    max_strafe_velocity: 59.8370649
+    natural_forward_deceleration: 33.6622494
+    natural_strafe_deceleration: 71.7687232
+    # Speed fraction reduced from 0.90 after 10-inch trials showed less endpoint overshoot.
+    max_path_speed: 0.75
 
 turret:
   enabled: true

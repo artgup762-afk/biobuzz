@@ -489,6 +489,58 @@
     "pedro": {
       "type": "object",
       "properties": {
+        "tuning": {
+          "type": "object",
+          "properties": {
+            "short_stage_timeout_s": {
+              "description": "On-robot deadline after START for Foresight velocity, deceleration, step-response measurements and the bounded line, turn and curve tests; stops drive independently of Wi-Fi.",
+              "oneOf": [
+                {
+                  "type": "number",
+                  "minimum": 1.0,
+                  "maximum": 15.0
+                },
+                {
+                  "type": "string",
+                  "pattern": "^(?i)(m|k|mirror|key)?\\s*[+\\-*/]?\\s*\\d*(\\.\\d+)?$"
+                }
+              ]
+            },
+            "braking_stage_timeout_s": {
+              "description": "On-robot deadline after START for the complete multi-trial Foresight braking measurement; aborts and stops drive independently of Wi-Fi.",
+              "oneOf": [
+                {
+                  "type": "number",
+                  "minimum": 1.0,
+                  "maximum": 120.0
+                },
+                {
+                  "type": "string",
+                  "pattern": "^(?i)(m|k|mirror|key)?\\s*[+\\-*/]?\\s*\\d*(\\.\\d+)?$"
+                }
+              ]
+            },
+            "validation_turn_degrees": {
+              "description": "Default signed heading target for the bounded turn-and-return validation. Positive turns left; negative turns right. The test holds the target for the first half of the short-stage window, then returns to the starting heading.",
+              "oneOf": [
+                {
+                  "type": "number",
+                  "minimum": -180.0,
+                  "maximum": 180.0
+                },
+                {
+                  "type": "string",
+                  "pattern": "^(?i)(m|k|mirror|key)?\\s*[+\\-*/]?\\s*\\d*(\\.\\d+)?$"
+                }
+              ]
+            }
+          },
+          "required": [
+            "short_stage_timeout_s",
+            "braking_stage_timeout_s",
+            "validation_turn_degrees"
+          ]
+        },
         "drivetrain": {
           "type": "object",
           "properties": {
@@ -1051,7 +1103,7 @@
           "type": "object",
           "properties": {
             "max_forward_velocity": {
-              "description": "Forward velocity in inches per second recovered verbatim from local tuning; unusually low, verify on robot.",
+              "description": "Measured maximum forward body velocity in inches per second from the Foresight velocity trial.",
               "oneOf": [
                 {
                   "type": "number",
@@ -1127,6 +1179,7 @@
         }
       },
       "required": [
+        "tuning",
         "drivetrain",
         "localization",
         "heading",

@@ -15,6 +15,8 @@ import com.pedropathing.tuning.autotune.TuningOpMode;
 import com.pedropathing.utils.Angle;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.util.ElapsedTime;
+import org.firstinspires.ftc.teamcode.robot.config.generated.config;
+import org.firstinspires.ftc.teamcode.utilities.OpModeUtil;
 
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -28,6 +30,18 @@ public class Tests extends Procedure {
         HOLD,
         @DisplayName("Line Test")
         LINE,
+        @DisplayName("Settled Line Test")
+        SETTLED_LINE,
+        @DisplayName("Settled Strafe Test")
+        SETTLED_STRAFE,
+        @DisplayName("Forward Measurement (one way)")
+        FORWARD_MEASUREMENT,
+        @DisplayName("Strafe Measurement (one way)")
+        STRAFE_MEASUREMENT,
+        @DisplayName("Turn and Return Test")
+        TURN,
+        @DisplayName("Constant Heading Curve Test")
+        CURVED_CONSTANT,
         @DisplayName("Curve Test")
         CURVED,
         @DisplayName("Interpolation Test")
@@ -46,11 +60,12 @@ public class Tests extends Procedure {
     Supplier<Algorithm> algorithmSupplier;
     Function<HardwareMap, Follower> followerFunction;
 
-    public Tests(Function<HardwareMap, Drivetrain> drivetrainFunction, Function<HardwareMap, Localizer> localizerFunction, Supplier<Algorithm> algorithmSupplier) {
+    public Tests(Function<HardwareMap, Drivetrain> drivetrainFunction, Function<HardwareMap, Localizer> localizerFunction, Supplier<Algorithm> algorithmSupplier, Function<HardwareMap, Follower> followerFunction) {
         super("Tests", "A procedure for testing the Follower.");
         this.drivetrainFunction = drivetrainFunction;
         this.localizerFunction = localizerFunction;
         this.algorithmSupplier = algorithmSupplier;
+        this.followerFunction = followerFunction;
     }
 
     @Override
@@ -67,12 +82,13 @@ public class Tests extends Procedure {
         if (drivetrainFunction == null)
             drivetrain = false;
 
-        if (algorithm && localizer && drivetrain)
+        if (followerFunction == null && algorithm && localizer && drivetrain)
             followerFunction = (hardwareMap) -> new Follower(localizerFunction.apply(hardwareMap), drivetrainFunction.apply(hardwareMap), algorithmSupplier.get());
 
         Inputs inputs = inputs("Select", "Select");
         Inputs.Field<Test> selectedTest = inputs.e("Test", Test.class).withDefault(Test.LINE);
         Inputs.Field<Double> distance = inputs.d("Distance").withDefault(48.0);
+        Inputs.Field<Double> turnDegrees = inputs.d("Turn angle (degrees)").withDefault(config.pedro.tuning.validation_turn_degrees);
 
         awaitInputs(inputs);
 
@@ -83,14 +99,28 @@ public class Tests extends Procedure {
                 completed = runOpMode(new TestsHold(followerFunction));
                 break;
             case LINE:
+            case SETTLED_LINE:
+            case SETTLED_STRAFE:
+            case FORWARD_MEASUREMENT:
+            case STRAFE_MEASUREMENT:
                 if (!algorithm)
                     throw new IllegalArgumentException("Algorithm is required for Hold Test.");
-                completed = runOpMode(new TestsLine(followerFunction, distance.get()));
+                boolean strafe = selectedTest.get() == Test.SETTLED_STRAFE || selectedTest.get() == Test.STRAFE_MEASUREMENT;
+                boolean oneWay = selectedTest.get() == Test.FORWARD_MEASUREMENT || selectedTest.get() == Test.STRAFE_MEASUREMENT;
+                completed = runOpMode(new TestsLine(followerFunction,
+                        strafe ? new Pose(0, distance.get(), 0) : new Pose(distance.get(), 0, 0),
+                        selectedTest.get() != Test.LINE, oneWay));
+                break;
+            case TURN:
+                if (!algorithm)
+                    throw new IllegalArgumentException("Algorithm is required for Turn Test.");
+                completed = runOpMode(new TestsTurn(followerFunction, turnDegrees.get()));
                 break;
             case CURVED:
+            case CURVED_CONSTANT:
                 if (!algorithm)
                     throw new IllegalArgumentException("Algorithm is required for Hold Test.");
-                completed = runOpMode(new TestsCurve(followerFunction, distance.get()));
+                completed = runOpMode(new TestsCurve(followerFunction, distance.get(), selectedTest.get() == Test.CURVED));
                 break;
             case INTERPOLATION_CURVED:
                 if (!algorithm)
@@ -158,83 +188,144 @@ class TestsHold extends TuningOpMode<Boolean> {
 
 class TestsLine extends TuningOpMode<Boolean> {
     Function<HardwareMap, Follower> followerFunction;
-    double distance;
+    final Pose target;
+    final boolean settle;
+    final boolean oneWay;
 
-    public TestsLine(Function<HardwareMap, Follower> followerFunction, double distance) {
-        super("Line Test", "Tests the Follower's ability to follow a line.", true);
+    public TestsLine(Function<HardwareMap, Follower> followerFunction, Pose target, boolean settle, boolean oneWay) {
+        super("Line Test", oneWay
+                ? "Moves to the measurement endpoint and stops; does not return to the start."
+                : "Tests a line back and forth, bounded by the configured short-stage timeout.", true);
         this.followerFunction = followerFunction;
-        this.distance = distance;
+        this.target = target;
+        this.settle = settle;
+        this.oneWay = oneWay;
     }
 
     @Override
     public Boolean runTuningOpMode() throws InterruptedException {
+        config.reload();
+        OpModeUtil.reportConfig(telemetry);
         Follower follower = followerFunction.apply(hardwareMap);
         follower.setPose(Pose.zero());
 
         boolean forward = true;
 
-        Path path1 = line(Pose.zero(), new Pose(distance,0, 0)).constant(0);
-        Path path2 = line(new Pose(distance,0, 0), Pose.zero()).constant(0);
+        Path path1 = line(Pose.zero(), target).constant(0);
+        Path path2 = line(target, Pose.zero()).constant(0);
 
-        Thread.sleep(1000);
-        waitForStart();
-        follower.setPose(Pose.zero());
-        follower.update();
-        follower.follow(path1);
-
-        while (opModeIsActive()) {
+        try {
+            Thread.sleep(1000);
+            waitForStart();
+            if (isStopRequested()) return false;
+            follower.setPose(Pose.zero());
             follower.update();
-            if (follower.atParametricEnd()) {
-                if (forward) {
-                    follower.follow(path2);
-                } else {
-                    follower.follow(path1);
+            follower.follow(path1);
+
+            ElapsedTime runTimer = new ElapsedTime();
+            while (opModeIsActive() && runTimer.seconds() < config.pedro.tuning.short_stage_timeout_s) {
+                follower.update();
+                if (settle) {
+                    if (!oneWay && forward && runTimer.seconds() >= config.pedro.tuning.short_stage_timeout_s / 2) {
+                        follower.follow(path2);
+                        forward = false;
+                    }
+                } else if (follower.atParametricEnd()) {
+                    if (forward) {
+                        follower.follow(path2);
+                    } else {
+                        follower.follow(path1);
+                    }
+                    forward = !forward;
                 }
-                forward = !forward;
             }
+            return !isStopRequested() && runTimer.seconds() >= config.pedro.tuning.short_stage_timeout_s;
+        } finally {
+            follower.stop();
+            follower.drivetrain.stop();
         }
-        return true;
+    }
+}
+
+class TestsTurn extends TuningOpMode<Boolean> {
+    final Function<HardwareMap, Follower> followerFunction;
+    final double turnDegrees;
+
+    public TestsTurn(Function<HardwareMap, Follower> followerFunction, double turnDegrees) {
+        super("Turn and Return Test", "Turns to the selected heading and back, bounded by the configured short-stage timeout.", true);
+        this.followerFunction = followerFunction;
+        this.turnDegrees = turnDegrees;
+    }
+
+    @Override
+    public Boolean runTuningOpMode() throws InterruptedException {
+        config.reload();
+        OpModeUtil.reportConfig(telemetry);
+        Follower follower = followerFunction.apply(hardwareMap);
+        try {
+            waitForStart();
+            if (isStopRequested()) return false;
+            follower.setPose(Pose.zero());
+            follower.update();
+            follower.hold(new Pose(0, 0, Math.toRadians(turnDegrees)));
+            boolean returning = false;
+            ElapsedTime runTimer = new ElapsedTime();
+            while (opModeIsActive() && runTimer.seconds() < config.pedro.tuning.short_stage_timeout_s) {
+                if (!returning && runTimer.seconds() >= config.pedro.tuning.short_stage_timeout_s / 2) {
+                    follower.hold(Pose.zero());
+                    returning = true;
+                }
+                follower.update();
+            }
+            return !isStopRequested() && runTimer.seconds() >= config.pedro.tuning.short_stage_timeout_s;
+        } finally {
+            follower.stop();
+            follower.drivetrain.stop();
+        }
     }
 }
 
 class TestsCurve extends TuningOpMode<Boolean> {
     Function<HardwareMap, Follower> followerFunction;
     double distance;
+    final boolean tangentHeading;
 
-    public TestsCurve(Function<HardwareMap, Follower> followerFunction, double distance) {
-        super("Curve Test", "Tests the Follower's ability to follow a curve.", true);
+    public TestsCurve(Function<HardwareMap, Follower> followerFunction, double distance, boolean tangentHeading) {
+        super("Curve Test", "Follows a curve and retraces it once, bounded by the configured short-stage timeout.", true);
         this.followerFunction = followerFunction;
         this.distance = distance;
+        this.tangentHeading = tangentHeading;
     }
 
     @Override
     public Boolean runTuningOpMode() throws InterruptedException {
+        config.reload();
+        OpModeUtil.reportConfig(telemetry);
         Follower follower = followerFunction.apply(hardwareMap);
-        follower.setPose(Pose.zero());
-
-        boolean forward = true;
-
-        Path path1 = curve(Pose.zero(), new Pose(distance + 0,0), new Pose(distance,distance)).tangent();
-        Path path2 = curve(new Pose(distance,distance), new Pose(distance,0), Pose.zero()).tangent();
-
-        Thread.sleep(1000);
-        waitForStart();
-        follower.setPose(Pose.zero());
-        follower.update();
-        follower.follow(path1);
-
-        while (opModeIsActive()) {
+        try {
+            Path path1 = curve(Pose.zero(), new Pose(distance, 0), new Pose(distance, distance));
+            Path path2 = curve(new Pose(distance, distance), new Pose(distance, 0), Pose.zero());
+            path1 = tangentHeading ? path1.tangent() : path1.constant(0);
+            path2 = tangentHeading ? path2.reverseTangent() : path2.constant(0);
+            waitForStart();
+            if (isStopRequested()) return false;
+            follower.setPose(Pose.zero());
             follower.update();
-            if (follower.atParametricEnd()) {
-                if (forward) {
+            follower.follow(path1);
+            boolean returning = false;
+            ElapsedTime runTimer = new ElapsedTime();
+            while (opModeIsActive() && runTimer.seconds() < config.pedro.tuning.short_stage_timeout_s) {
+                if (!returning && runTimer.seconds() >= config.pedro.tuning.short_stage_timeout_s / 2) {
                     follower.follow(path2);
-                } else {
-                    follower.follow(path1);
+                    returning = true;
                 }
-                forward = !forward;
+                follower.update();
             }
+            return !isStopRequested() && runTimer.seconds() >= config.pedro.tuning.short_stage_timeout_s;
+        } finally {
+            follower.stop();
+            follower.drivetrain.stop();
         }
-        return true;
     }
 }
 
