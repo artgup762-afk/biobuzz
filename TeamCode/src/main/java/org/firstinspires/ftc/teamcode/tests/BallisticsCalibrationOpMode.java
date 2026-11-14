@@ -547,8 +547,7 @@ public class BallisticsCalibrationOpMode extends LinearOpMode {
         // The running shot owns the intake until RT is released.
       } else if (gamepad1.right_bumper) {
         robot.intake.run(
-            org.firstinspires.ftc.teamcode.robot.config.generated.config.teleop.intake_power,
-            org.firstinspires.ftc.teamcode.robot.config.generated.config.teleop.transfer_power);
+            org.firstinspires.ftc.teamcode.robot.config.generated.config.teleop.intake_power);
       } else if (gamepad1.left_trigger > 0.3 || gamepad1.left_bumper) {
         robot.intake.stop();
         robot.shotController.stopShot();

@@ -80,7 +80,7 @@ public final class HiveVision {
 
   private final CameraMount mount;
   private @Nullable AprilTagProcessor aprilTag;
-  private @Nullable VisionPortal visionPortal;
+  private @Nullable VisionPortalLifecycle cameraLifecycle;
   private boolean streaming = false;
 
   public HiveVision() {
@@ -111,17 +111,16 @@ public final class HiveVision {
             .build();
     aprilTag.setDecimation((float) config.vision.decimation);
 
-    visionPortal =
+    VisionPortal visionPortal =
         new VisionPortal.Builder()
             .setCamera(webcam)
             .setCameraResolution(new Size(640, 480))
             .setStreamFormat(VisionPortal.StreamFormat.MJPEG)
+            .setAutoStartStreamOnBuild(config.vision.continuous)
             .addProcessor(aprilTag)
             .build();
-    streaming = true;
-    if (!config.vision.continuous) {
-      stopStreaming();
-    }
+    streaming = config.vision.continuous;
+    cameraLifecycle = new VisionPortalLifecycle(visionPortal, streaming);
   }
 
   public boolean isAvailable() {
@@ -175,39 +174,26 @@ public final class HiveVision {
   }
 
   public void resumeStreaming() {
-    if (visionPortal != null && !streaming) {
-      try {
-        visionPortal.resumeStreaming();
-        streaming = true;
-      } catch (RuntimeException ignored) {
-        // Camera not ready yet; the next request retries.
-      }
+    if (cameraLifecycle != null) {
+      cameraLifecycle.setStreaming(true);
+      streaming = true;
     }
   }
 
   public void stopStreaming() {
-    if (visionPortal != null && streaming) {
-      try {
-        visionPortal.stopStreaming();
-        streaming = false;
-      } catch (RuntimeException ignored) {
-        // Camera not ready yet; the next request retries.
-      }
+    if (cameraLifecycle != null) {
+      cameraLifecycle.setStreaming(false);
+      streaming = false;
     }
   }
 
-  /** Releases the camera. Called from Robot.shutdown(); safe to call twice. */
+  /** Requests camera release without blocking STOP on SDK startup; safe to call twice. */
   public void close() {
-    if (visionPortal != null) {
-      try {
-        visionPortal.close();
-      } catch (RuntimeException ignored) {
-        // Already closed.
-      }
-      visionPortal = null;
-      aprilTag = null;
-      streaming = false;
-    }
+    VisionPortalLifecycle closing = cameraLifecycle;
+    cameraLifecycle = null;
+    aprilTag = null;
+    streaming = false;
+    if (closing != null) closing.close();
   }
 
   // ---------------------------------------------------------------------------------------------

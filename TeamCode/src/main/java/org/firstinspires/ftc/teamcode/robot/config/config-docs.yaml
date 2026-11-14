@@ -1,3 +1,46 @@
+left_servo_name:
+  desc: "HardwareMap name of the left positional Axon MK2 servo, on Expansion Hub servo port 4."
+right_servo_name:
+  desc: "HardwareMap name of the right positional Axon MK2 servo, on Control Hub servo port 1."
+left_analog_name:
+  desc: "HardwareMap name of the left Axon feedback AnalogInput on the Expansion Hub."
+right_analog_name:
+  desc: "HardwareMap name of the right Axon feedback AnalogInput on the Control Hub."
+pwm_lower_us:
+  desc: "Minimum positional-servo pulse width in microseconds; Axon MK2 documented range begins at 500 us. Must be below pwm_upper_us."
+  min: 500.0
+  max: 2500.0
+pwm_upper_us:
+  desc: "Maximum positional-servo pulse width in microseconds; Axon MK2 documented range ends at 2500 us. Must exceed pwm_lower_us."
+  min: 500.0
+  max: 2500.0
+left_center_position:
+  desc: "Left servo normalized holding position commanded on first manual enable. Recheck after gear or shaft reassembly; 0.5 is not necessarily the turret center."
+  min: 0.0
+  max: 1.0
+right_center_position:
+  desc: "Right servo normalized holding position corresponding to the same turret reference as the left. Recheck after gear or shaft reassembly and verify agreement before enabling the pair."
+  min: 0.0
+  max: 1.0
+left_reversed:
+  desc: "Reverse the left servo jog about its configured center. Does not invert its feedback voltage."
+right_reversed:
+  desc: "Reverse the right servo jog about its configured center. Choose the direction that assists the left servo on the coupled turret."
+max_jog_offset:
+  desc: "Maximum normalized servo-position offset from each center in both the main positional turret and isolated test. Centers plus/minus this must remain in [0,1]; not a turret angle limit."
+  min: 0.001
+  max: 0.5
+jog_step_position:
+  desc: "Normalized position step for each dpad press while the test enable bumper is held. Must not exceed max_jog_offset."
+  min: 0.0001
+  max: 0.05
+max_enable_sec:
+  desc: "Maximum continuous PWM enable duration in the turret test; release the bumper to re-arm after timeout."
+  min: 0.1
+  max: 10.0
+pair_verified:
+  desc: "Mechanical pairing verified for automatic aiming. X plus held LB permits bounded commissioning while false; set true only after the pair assists without slipping or binding."
+
 short_stage_timeout_s:
   desc: "On-robot deadline after START for Foresight velocity, deceleration, step-response measurements and the bounded line, turn and curve tests; stops drive independently of Wi-Fi."
   min: 1.0
@@ -39,6 +82,26 @@ back_right_direction:
 
 pinpoint_name:
   desc: "Hardware map name of the goBILDA Pinpoint odometry computer."
+
+turn_pinpoint_enabled:
+  desc: "Enable the optional turnpinpoint diagnostic sensor. Keep false when unplugged: sensor-dependent turret tests refuse to run and hardware/flight recording skips it. Does not disable the drivetrain pinpoint or Axon analog feedback."
+
+distances_in:
+  desc: "Shot Timing Tuner shooting distances from the CELL opening, in inches. Place the robot at the displayed distance before each trial."
+bench_mode:
+  desc: "Shot Timing Tuner only: manually aimed catch-area timing at shooter.constant_rpm. START spins both flywheels, then feeds when speed is ready; no turret aim or shot-table prerequisites. Measures elapsed time until the requested RPM dips and final speed recovery, without a preset duration or added timing margin. LT/STOP cancels. Saves bench results separately from the distance-calibrated autonomous table. False restores CELL-targeted distance calibration and all its aiming/solution gates."
+ray_off_axis_deg:
+  desc: "Shot Timing Tuner calibration ray angle relative to the CELL opening normal, in degrees."
+  min: -180.0
+  max: 180.0
+dip_step:
+  desc: "Fractional adjustment of the shot timing dip threshold per stick-button press."
+  min: 0.001
+  max: 1.0
+trigger_threshold:
+  desc: "Trigger activation threshold for the Shot Timing Tuner's retry and stop controls."
+  min: 0.0
+  max: 1.0
 
 pod_type:
   desc: "GoBildaPinpointDriver.GoBildaOdometryPods constant for the odometry pods (goBILDA_4_BAR_POD or goBILDA_SWINGARM_POD)."
@@ -451,11 +514,6 @@ shoot_wait_ms:
   desc: "Fallback autonomous shoot window (milliseconds), used only when auto.shot_time_points is empty."
   min: 0
 
-transfer_power:
-  desc: "Transfer motor power (0.0 to 1.0) while the intake is collecting (not feeding the shooter)."
-  min: 0.0
-  max: 1.0
-
 start:
   desc: "Starting pose: touching the perimeter wall, fully on the alliance's side, not in the LOADING ZONE and not touching a FLOWER (G304)."
 
@@ -507,12 +565,7 @@ feed_release_threshold:
   max: 1.0
 
 feed_intake_power:
-  desc: "Front intake power (0.0 to 1.0) when feeding SCORING ELEMENTS to the shooter."
-  min: 0.0
-  max: 1.0
-
-feed_transfer_power:
-  desc: "Transfer motor power (0.0 to 1.0) when feeding SCORING ELEMENTS to the shooter."
+  desc: "Single intake motor power (0.0 to 1.0) when feeding SCORING ELEMENTS to the shooter."
   min: 0.0
   max: 1.0
 
@@ -536,7 +589,7 @@ refractory_ms:
   min: 0
 
 intake_power:
-  desc: "Target motor power (0.0 to 1.0) for the intake rollers in TeleOp."
+  desc: "Target power (0.0 to 1.0) for the single intake motor while collecting in TeleOp or autonomous."
   min: 0.0
   max: 1.0
   suppress_similarity_check: true
@@ -1186,3 +1239,65 @@ flight_keep:
   desc: "Number of flights kept on the robot; the oldest are deleted when a new flight starts."
   min: 1
   max: 1000
+
+angle_calibrated:
+  desc: "Enable positional turret angle aiming only after checking programmed sweep, gear ratio, assembled forward reference and positive-offset CCW sign. Also requires pair_verified."
+servo_gear_teeth:
+  desc: "Number of teeth on each servo pinion; used with turret_gear_teeth for the positional turret angle scale."
+  min: 1
+  max: 1000
+turret_gear_teeth:
+  desc: "Number of teeth on the driven turret gear."
+  min: 1
+  max: 1000
+servo_sweep_deg:
+  desc: "Actual programmed servo shaft sweep across normalized position 0..1; 360 is nominal until verified."
+  min: 1.0
+  max: 360.0
+positive_offset_ccw:
+  desc: "True if increasing the common servo offset rotates the assembled turret counterclockwise viewed from above. Verify physically before angle_calibrated."
+left_reference_volts:
+  desc: "Left feedback voltage at the shared mechanical reference and left_center_position."
+  min: 0.0
+  max: 3.3
+right_reference_volts:
+  desc: "Right feedback voltage at the same mechanical reference and right_center_position."
+  min: 0.0
+  max: 3.3
+left_volts_per_position:
+  desc: "Measured local increase in left analog voltage per normalized servo-position unit; no wrap is allowed within the command window."
+  min: 0.001
+  max: 10.0
+right_volts_per_position:
+  desc: "Measured local increase in right analog voltage per normalized servo-position unit; no wrap is allowed within the command window."
+  min: 0.001
+  max: 10.0
+manual_position_per_sec:
+  desc: "Normalized positional turret jog rate at full manual input, limited by max_jog_offset and max_enable_sec."
+  min: 0.0001
+  max: 1.0
+feedback_startup_sec:
+  desc: "Time allowed for Axon analog feedback to wake after PWM enable; aiming remains false until both feedback readings are valid."
+  min: 0.0
+  max: 2.0
+max_update_gap_sec:
+  desc: "Largest accepted interval for integrating a positional turret manual jog; a longer loop gap disables PWM and requires neutral input to re-arm."
+  min: 0.01
+  max: 0.5
+
+servo_name:
+  desc: "HardwareMap name of the positional flap servo; flapservo is on Expansion Hub servo port 3."
+servo_range_deg:
+  desc: "Programmed shaft sweep across the flap PWM range. Axon MK2 nominal 360; must match actual servo programming for degree commands to be accurate."
+  min: 1.0
+  max: 360.0
+up_angle_deg:
+  desc: "Flap UP shaft-angle target within servo_range_deg. Set horn orientation so this position raises the flap; no automatic startup command."
+  min: 0.0
+  max: 360.0
+down_angle_deg:
+  desc: "Flap DOWN shaft-angle target within servo_range_deg. The difference from up_angle_deg sets the travel, nominally 180 degrees."
+  min: 0.0
+  max: 360.0
+reversed:
+  desc: "Reverse the flap servo's command direction if its mounting requires it. Changes the physical up/down targets; verify horn alignment after changing."

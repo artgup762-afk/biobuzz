@@ -1189,12 +1189,335 @@
         "motion"
       ]
     },
+    "turret_servo_test": {
+      "type": "object",
+      "properties": {
+        "left_servo_name": {
+          "description": "HardwareMap name of the left positional Axon MK2 servo, on Expansion Hub servo port 4.",
+          "type": "string"
+        },
+        "right_servo_name": {
+          "description": "HardwareMap name of the right positional Axon MK2 servo, on Control Hub servo port 1.",
+          "type": "string"
+        },
+        "left_analog_name": {
+          "description": "HardwareMap name of the left Axon feedback AnalogInput on the Expansion Hub.",
+          "type": "string"
+        },
+        "right_analog_name": {
+          "description": "HardwareMap name of the right Axon feedback AnalogInput on the Control Hub.",
+          "type": "string"
+        },
+        "pwm_lower_us": {
+          "description": "Minimum positional-servo pulse width in microseconds; Axon MK2 documented range begins at 500 us. Must be below pwm_upper_us.",
+          "oneOf": [
+            {
+              "type": "number",
+              "minimum": 500.0,
+              "maximum": 2500.0
+            },
+            {
+              "type": "string",
+              "pattern": "^(?i)(m|k|mirror|key)?\\s*[+\\-*/]?\\s*\\d*(\\.\\d+)?$"
+            }
+          ]
+        },
+        "pwm_upper_us": {
+          "description": "Maximum positional-servo pulse width in microseconds; Axon MK2 documented range ends at 2500 us. Must exceed pwm_lower_us.",
+          "oneOf": [
+            {
+              "type": "number",
+              "minimum": 500.0,
+              "maximum": 2500.0
+            },
+            {
+              "type": "string",
+              "pattern": "^(?i)(m|k|mirror|key)?\\s*[+\\-*/]?\\s*\\d*(\\.\\d+)?$"
+            }
+          ]
+        },
+        "left_center_position": {
+          "description": "Left servo normalized holding position commanded on first manual enable. Recheck after gear or shaft reassembly; 0.5 is not necessarily the turret center.",
+          "oneOf": [
+            {
+              "type": "number",
+              "minimum": 0.0,
+              "maximum": 1.0
+            },
+            {
+              "type": "string",
+              "pattern": "^(?i)(m|k|mirror|key)?\\s*[+\\-*/]?\\s*\\d*(\\.\\d+)?$"
+            }
+          ]
+        },
+        "right_center_position": {
+          "description": "Right servo normalized holding position corresponding to the same turret reference as the left. Recheck after gear or shaft reassembly and verify agreement before enabling the pair.",
+          "oneOf": [
+            {
+              "type": "number",
+              "minimum": 0.0,
+              "maximum": 1.0
+            },
+            {
+              "type": "string",
+              "pattern": "^(?i)(m|k|mirror|key)?\\s*[+\\-*/]?\\s*\\d*(\\.\\d+)?$"
+            }
+          ]
+        },
+        "left_reversed": {
+          "description": "Reverse the left servo jog about its configured center. Does not invert its feedback voltage.",
+          "type": "boolean"
+        },
+        "right_reversed": {
+          "description": "Reverse the right servo jog about its configured center. Choose the direction that assists the left servo on the coupled turret.",
+          "type": "boolean"
+        },
+        "max_jog_offset": {
+          "description": "Maximum normalized servo-position offset from each center in both the main positional turret and isolated test. Centers plus/minus this must remain in [0,1]; not a turret angle limit.",
+          "oneOf": [
+            {
+              "type": "number",
+              "minimum": 0.001,
+              "maximum": 0.5
+            },
+            {
+              "type": "string",
+              "pattern": "^(?i)(m|k|mirror|key)?\\s*[+\\-*/]?\\s*\\d*(\\.\\d+)?$"
+            }
+          ]
+        },
+        "jog_step_position": {
+          "description": "Normalized position step for each dpad press while the test enable bumper is held. Must not exceed max_jog_offset.",
+          "oneOf": [
+            {
+              "type": "number",
+              "minimum": 1.0E-4,
+              "maximum": 0.05
+            },
+            {
+              "type": "string",
+              "pattern": "^(?i)(m|k|mirror|key)?\\s*[+\\-*/]?\\s*\\d*(\\.\\d+)?$"
+            }
+          ]
+        },
+        "max_enable_sec": {
+          "description": "Maximum continuous PWM enable duration in the turret test; release the bumper to re-arm after timeout.",
+          "oneOf": [
+            {
+              "type": "number",
+              "minimum": 0.1,
+              "maximum": 10.0
+            },
+            {
+              "type": "string",
+              "pattern": "^(?i)(m|k|mirror|key)?\\s*[+\\-*/]?\\s*\\d*(\\.\\d+)?$"
+            }
+          ]
+        },
+        "pair_verified": {
+          "description": "Mechanical pairing verified for automatic aiming. X plus held LB permits bounded commissioning while false; set true only after the pair assists without slipping or binding.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "left_servo_name",
+        "right_servo_name",
+        "left_analog_name",
+        "right_analog_name",
+        "pwm_lower_us",
+        "pwm_upper_us",
+        "left_center_position",
+        "right_center_position",
+        "left_reversed",
+        "right_reversed",
+        "max_jog_offset",
+        "jog_step_position",
+        "max_enable_sec",
+        "pair_verified"
+      ]
+    },
     "turret": {
       "type": "object",
       "properties": {
         "enabled": {
           "description": "Enable/disable this subsystem, controller, watchdog, or feature.",
           "type": "boolean"
+        },
+        "turn_pinpoint_enabled": {
+          "description": "Enable the optional turnpinpoint diagnostic sensor. Keep false when unplugged: sensor-dependent turret tests refuse to run and hardware/flight recording skips it. Does not disable the drivetrain pinpoint or Axon analog feedback.",
+          "type": "boolean"
+        },
+        "dual_position": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "description": "Enable/disable this subsystem, controller, watchdog, or feature.",
+              "type": "boolean"
+            },
+            "angle_calibrated": {
+              "description": "Enable positional turret angle aiming only after checking programmed sweep, gear ratio, assembled forward reference and positive-offset CCW sign. Also requires pair_verified.",
+              "type": "boolean"
+            },
+            "servo_gear_teeth": {
+              "description": "Number of teeth on each servo pinion; used with turret_gear_teeth for the positional turret angle scale.",
+              "oneOf": [
+                {
+                  "type": "number",
+                  "minimum": 1.0,
+                  "maximum": 1000.0
+                },
+                {
+                  "type": "string",
+                  "pattern": "^(?i)(m|k|mirror|key)?\\s*[+\\-*/]?\\s*\\d*(\\.\\d+)?$"
+                }
+              ]
+            },
+            "turret_gear_teeth": {
+              "description": "Number of teeth on the driven turret gear.",
+              "oneOf": [
+                {
+                  "type": "number",
+                  "minimum": 1.0,
+                  "maximum": 1000.0
+                },
+                {
+                  "type": "string",
+                  "pattern": "^(?i)(m|k|mirror|key)?\\s*[+\\-*/]?\\s*\\d*(\\.\\d+)?$"
+                }
+              ]
+            },
+            "servo_sweep_deg": {
+              "description": "Actual programmed servo shaft sweep across normalized position 0..1; 360 is nominal until verified.",
+              "oneOf": [
+                {
+                  "type": "number",
+                  "minimum": 1.0,
+                  "maximum": 360.0
+                },
+                {
+                  "type": "string",
+                  "pattern": "^(?i)(m|k|mirror|key)?\\s*[+\\-*/]?\\s*\\d*(\\.\\d+)?$"
+                }
+              ]
+            },
+            "positive_offset_ccw": {
+              "description": "True if increasing the common servo offset rotates the assembled turret counterclockwise viewed from above. Verify physically before angle_calibrated.",
+              "type": "boolean"
+            },
+            "left_reference_volts": {
+              "description": "Left feedback voltage at the shared mechanical reference and left_center_position.",
+              "oneOf": [
+                {
+                  "type": "number",
+                  "minimum": 0.0,
+                  "maximum": 3.3
+                },
+                {
+                  "type": "string",
+                  "pattern": "^(?i)(m|k|mirror|key)?\\s*[+\\-*/]?\\s*\\d*(\\.\\d+)?$"
+                }
+              ]
+            },
+            "right_reference_volts": {
+              "description": "Right feedback voltage at the same mechanical reference and right_center_position.",
+              "oneOf": [
+                {
+                  "type": "number",
+                  "minimum": 0.0,
+                  "maximum": 3.3
+                },
+                {
+                  "type": "string",
+                  "pattern": "^(?i)(m|k|mirror|key)?\\s*[+\\-*/]?\\s*\\d*(\\.\\d+)?$"
+                }
+              ]
+            },
+            "left_volts_per_position": {
+              "description": "Measured local increase in left analog voltage per normalized servo-position unit; no wrap is allowed within the command window.",
+              "oneOf": [
+                {
+                  "type": "number",
+                  "minimum": 0.001,
+                  "maximum": 10.0
+                },
+                {
+                  "type": "string",
+                  "pattern": "^(?i)(m|k|mirror|key)?\\s*[+\\-*/]?\\s*\\d*(\\.\\d+)?$"
+                }
+              ]
+            },
+            "right_volts_per_position": {
+              "description": "Measured local increase in right analog voltage per normalized servo-position unit; no wrap is allowed within the command window.",
+              "oneOf": [
+                {
+                  "type": "number",
+                  "minimum": 0.001,
+                  "maximum": 10.0
+                },
+                {
+                  "type": "string",
+                  "pattern": "^(?i)(m|k|mirror|key)?\\s*[+\\-*/]?\\s*\\d*(\\.\\d+)?$"
+                }
+              ]
+            },
+            "manual_position_per_sec": {
+              "description": "Normalized positional turret jog rate at full manual input, limited by max_jog_offset and max_enable_sec.",
+              "oneOf": [
+                {
+                  "type": "number",
+                  "minimum": 1.0E-4,
+                  "maximum": 1.0
+                },
+                {
+                  "type": "string",
+                  "pattern": "^(?i)(m|k|mirror|key)?\\s*[+\\-*/]?\\s*\\d*(\\.\\d+)?$"
+                }
+              ]
+            },
+            "feedback_startup_sec": {
+              "description": "Time allowed for Axon analog feedback to wake after PWM enable; aiming remains false until both feedback readings are valid.",
+              "oneOf": [
+                {
+                  "type": "number",
+                  "minimum": 0.0,
+                  "maximum": 2.0
+                },
+                {
+                  "type": "string",
+                  "pattern": "^(?i)(m|k|mirror|key)?\\s*[+\\-*/]?\\s*\\d*(\\.\\d+)?$"
+                }
+              ]
+            },
+            "max_update_gap_sec": {
+              "description": "Largest accepted interval for integrating a positional turret manual jog; a longer loop gap disables PWM and requires neutral input to re-arm.",
+              "oneOf": [
+                {
+                  "type": "number",
+                  "minimum": 0.01,
+                  "maximum": 0.5
+                },
+                {
+                  "type": "string",
+                  "pattern": "^(?i)(m|k|mirror|key)?\\s*[+\\-*/]?\\s*\\d*(\\.\\d+)?$"
+                }
+              ]
+            }
+          },
+          "required": [
+            "enabled",
+            "angle_calibrated",
+            "servo_gear_teeth",
+            "turret_gear_teeth",
+            "servo_sweep_deg",
+            "positive_offset_ccw",
+            "left_reference_volts",
+            "right_reference_volts",
+            "left_volts_per_position",
+            "right_volts_per_position",
+            "manual_position_per_sec",
+            "feedback_startup_sec",
+            "max_update_gap_sec"
+          ]
         },
         "max_power_output": {
           "description": "Maximum power limit (0.0 to 1.0) commanded to the turret CRServo. Limits maximum turret rotation speed.",
@@ -1724,6 +2047,8 @@
       },
       "required": [
         "enabled",
+        "turn_pinpoint_enabled",
+        "dual_position",
         "max_power_output",
         "servo_direction_inverted",
         "ks_positive",
@@ -3474,21 +3799,7 @@
           ]
         },
         "feed_intake_power": {
-          "description": "Front intake power (0.0 to 1.0) when feeding SCORING ELEMENTS to the shooter.",
-          "oneOf": [
-            {
-              "type": "number",
-              "minimum": 0.0,
-              "maximum": 1.0
-            },
-            {
-              "type": "string",
-              "pattern": "^(?i)(m|k|mirror|key)?\\s*[+\\-*/]?\\s*\\d*(\\.\\d+)?$"
-            }
-          ]
-        },
-        "feed_transfer_power": {
-          "description": "Transfer motor power (0.0 to 1.0) when feeding SCORING ELEMENTS to the shooter.",
+          "description": "Single intake motor power (0.0 to 1.0) when feeding SCORING ELEMENTS to the shooter.",
           "oneOf": [
             {
               "type": "number",
@@ -3565,6 +3876,69 @@
             "rebound_fraction",
             "baseline_alpha",
             "refractory_ms"
+          ]
+        },
+        "timing_tuner": {
+          "type": "object",
+          "properties": {
+            "bench_mode": {
+              "description": "Shot Timing Tuner only: manually aimed catch-area timing at shooter.constant_rpm. START spins both flywheels, then feeds when speed is ready; no turret aim or shot-table prerequisites. Measures elapsed time until the requested RPM dips and final speed recovery, without a preset duration or added timing margin. LT/STOP cancels. Saves bench results separately from the distance-calibrated autonomous table. False restores CELL-targeted distance calibration and all its aiming/solution gates.",
+              "type": "boolean"
+            },
+            "distances_in": {
+              "description": "Shot Timing Tuner shooting distances from the CELL opening, in inches. Place the robot at the displayed distance before each trial.",
+              "type": "array",
+              "items": {"type": "number"}
+            },
+            "ray_off_axis_deg": {
+              "description": "Shot Timing Tuner calibration ray angle relative to the CELL opening normal, in degrees.",
+              "oneOf": [
+                {
+                  "type": "number",
+                  "minimum": -180.0,
+                  "maximum": 180.0
+                },
+                {
+                  "type": "string",
+                  "pattern": "^(?i)(m|k|mirror|key)?\\s*[+\\-*/]?\\s*\\d*(\\.\\d+)?$"
+                }
+              ]
+            },
+            "dip_step": {
+              "description": "Fractional adjustment of the shot timing dip threshold per stick-button press.",
+              "oneOf": [
+                {
+                  "type": "number",
+                  "minimum": 0.001,
+                  "maximum": 1.0
+                },
+                {
+                  "type": "string",
+                  "pattern": "^(?i)(m|k|mirror|key)?\\s*[+\\-*/]?\\s*\\d*(\\.\\d+)?$"
+                }
+              ]
+            },
+            "trigger_threshold": {
+              "description": "Trigger activation threshold for the Shot Timing Tuner's retry and stop controls.",
+              "oneOf": [
+                {
+                  "type": "number",
+                  "minimum": 0.0,
+                  "maximum": 1.0
+                },
+                {
+                  "type": "string",
+                  "pattern": "^(?i)(m|k|mirror|key)?\\s*[+\\-*/]?\\s*\\d*(\\.\\d+)?$"
+                }
+              ]
+            }
+          },
+          "required": [
+            "bench_mode",
+            "distances_in",
+            "ray_off_axis_deg",
+            "dip_step",
+            "trigger_threshold"
           ]
         },
         "pidf": {
@@ -4178,8 +4552,8 @@
         "max_velocity_threshold",
         "feed_release_threshold",
         "feed_intake_power",
-        "feed_transfer_power",
         "ball_detection",
+        "timing_tuner",
         "pidf",
         "motor_pidf",
         "integral",
@@ -4288,8 +4662,8 @@
             }
           ]
         },
-        "transfer_power": {
-          "description": "Transfer motor power (0.0 to 1.0) while the intake is collecting (not feeding the shooter).",
+        "intake_power": {
+          "description": "Target power (0.0 to 1.0) for the single intake motor while collecting in TeleOp or autonomous.",
           "oneOf": [
             {
               "type": "number",
@@ -4324,10 +4698,107 @@
         "park_margin_ms",
         "park_reserve_ms",
         "park_update_ms",
-        "transfer_power",
+        "intake_power",
         "cell_a_collect_flower",
         "cell_a_second_volley",
         "cell_b_collect_flower"
+      ]
+    },
+    "flap": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "description": "Enable/disable this subsystem, controller, watchdog, or feature.",
+          "type": "boolean"
+        },
+        "servo_name": {
+          "description": "HardwareMap name of the positional flap servo; flapservo is on Expansion Hub servo port 3.",
+          "type": "string"
+        },
+        "pwm_lower_us": {
+          "description": "Minimum positional-servo pulse width in microseconds; Axon MK2 documented range begins at 500 us. Must be below pwm_upper_us.",
+          "oneOf": [
+            {
+              "type": "number",
+              "minimum": 500.0,
+              "maximum": 2500.0
+            },
+            {
+              "type": "string",
+              "pattern": "^(?i)(m|k|mirror|key)?\\s*[+\\-*/]?\\s*\\d*(\\.\\d+)?$"
+            }
+          ]
+        },
+        "pwm_upper_us": {
+          "description": "Maximum positional-servo pulse width in microseconds; Axon MK2 documented range ends at 2500 us. Must exceed pwm_lower_us.",
+          "oneOf": [
+            {
+              "type": "number",
+              "minimum": 500.0,
+              "maximum": 2500.0
+            },
+            {
+              "type": "string",
+              "pattern": "^(?i)(m|k|mirror|key)?\\s*[+\\-*/]?\\s*\\d*(\\.\\d+)?$"
+            }
+          ]
+        },
+        "servo_range_deg": {
+          "description": "Programmed shaft sweep across the flap PWM range. Axon MK2 nominal 360; must match actual servo programming for degree commands to be accurate.",
+          "oneOf": [
+            {
+              "type": "number",
+              "minimum": 1.0,
+              "maximum": 360.0
+            },
+            {
+              "type": "string",
+              "pattern": "^(?i)(m|k|mirror|key)?\\s*[+\\-*/]?\\s*\\d*(\\.\\d+)?$"
+            }
+          ]
+        },
+        "up_angle_deg": {
+          "description": "Flap UP shaft-angle target within servo_range_deg. Set horn orientation so this position raises the flap; no automatic startup command.",
+          "oneOf": [
+            {
+              "type": "number",
+              "minimum": 0.0,
+              "maximum": 360.0
+            },
+            {
+              "type": "string",
+              "pattern": "^(?i)(m|k|mirror|key)?\\s*[+\\-*/]?\\s*\\d*(\\.\\d+)?$"
+            }
+          ]
+        },
+        "down_angle_deg": {
+          "description": "Flap DOWN shaft-angle target within servo_range_deg. The difference from up_angle_deg sets the travel, nominally 180 degrees.",
+          "oneOf": [
+            {
+              "type": "number",
+              "minimum": 0.0,
+              "maximum": 360.0
+            },
+            {
+              "type": "string",
+              "pattern": "^(?i)(m|k|mirror|key)?\\s*[+\\-*/]?\\s*\\d*(\\.\\d+)?$"
+            }
+          ]
+        },
+        "reversed": {
+          "description": "Reverse the flap servo's command direction if its mounting requires it. Changes the physical up/down targets; verify horn alignment after changing.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "enabled",
+        "servo_name",
+        "pwm_lower_us",
+        "pwm_upper_us",
+        "servo_range_deg",
+        "up_angle_deg",
+        "down_angle_deg",
+        "reversed"
       ]
     },
     "teleop": {
@@ -4366,21 +4837,7 @@
           ]
         },
         "intake_power": {
-          "description": "Target motor power (0.0 to 1.0) for the intake rollers in TeleOp.",
-          "oneOf": [
-            {
-              "type": "number",
-              "minimum": 0.0,
-              "maximum": 1.0
-            },
-            {
-              "type": "string",
-              "pattern": "^(?i)(m|k|mirror|key)?\\s*[+\\-*/]?\\s*\\d*(\\.\\d+)?$"
-            }
-          ]
-        },
-        "transfer_power": {
-          "description": "Transfer motor power (0.0 to 1.0) while the intake is collecting (not feeding the shooter).",
+          "description": "Target power (0.0 to 1.0) for the single intake motor while collecting in TeleOp or autonomous.",
           "oneOf": [
             {
               "type": "number",
@@ -4586,7 +5043,6 @@
         "field_centric",
         "field_centric_offset_deg",
         "intake_power",
-        "transfer_power",
         "manual_rev_power",
         "eject_power",
         "flower_hold_enabled",
@@ -5107,12 +5563,14 @@
     "match",
     "inventory",
     "pedro",
+    "turret_servo_test",
     "turret",
     "vision",
     "sentinel",
     "casablanca",
     "shooter",
     "auto",
+    "flap",
     "teleop",
     "auto_poses",
     "agent_bridge"

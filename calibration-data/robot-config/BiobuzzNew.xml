@@ -6,14 +6,15 @@
             <goBILDA5202SeriesMotor name="leftFront" port="1" />
             <goBILDA5202SeriesMotor name="leftBack" port="2" />
             <goBILDA5202SeriesMotor name="shooter" port="3" />
-            <Servo name="turnservo1" port="5" />
+            <Servo name="turnservo1" port="4" />
+            <Servo name="flapservo" port="3" />
             <goBILDAPinpoint name="turnpinpoint" port="0" bus="0" />
         </LynxModule>
         <LynxModule name="Control Hub" port="173">
             <goBILDA5202SeriesMotor name="rightIntake" port="1" />
             <goBILDA5202SeriesMotor name="rightFront" port="2" />
             <goBILDA5202SeriesMotor name="rightBack" port="3" />
-            <Servo name="turnservo2" port="3" />
+            <Servo name="turnservo2" port="1" />
             <goBILDAPinpoint name="pinpoint" port="0" bus="1" />
             <ControlHubImuBHI260AP name="imu" port="0" bus="0" />
         </LynxModule>

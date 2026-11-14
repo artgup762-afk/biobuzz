@@ -73,28 +73,36 @@ public class TurretAngleVerificationOpMode extends OpMode {
     } catch (Exception ignored) {
     }
 
-    try {
-      turnIMU = hardwareMap.get(IMU.class, "turnImu");
-      RevHubOrientationOnRobot.LogoFacingDirection logoDir =
-          RevHubOrientationOnRobot.LogoFacingDirection.RIGHT;
-      RevHubOrientationOnRobot.UsbFacingDirection usbDir =
-          RevHubOrientationOnRobot.UsbFacingDirection.UP;
+    if (config.turret.turn_pinpoint_enabled) {
+      try {
+        turnIMU = hardwareMap.get(IMU.class, "turnpinpoint");
+        RevHubOrientationOnRobot.LogoFacingDirection logoDir =
+            RevHubOrientationOnRobot.LogoFacingDirection.RIGHT;
+        RevHubOrientationOnRobot.UsbFacingDirection usbDir =
+            RevHubOrientationOnRobot.UsbFacingDirection.UP;
 
-      if (config.turret != null && config.turret.orientation != null) {
-        try {
-          logoDir =
-              RevHubOrientationOnRobot.LogoFacingDirection.valueOf(config.turret.orientation.logo);
-          usbDir =
-              RevHubOrientationOnRobot.UsbFacingDirection.valueOf(config.turret.orientation.usb);
-        } catch (Exception ignored) {
+        if (config.turret != null && config.turret.orientation != null) {
+          try {
+            logoDir =
+                RevHubOrientationOnRobot.LogoFacingDirection.valueOf(
+                    config.turret.orientation.logo);
+            usbDir =
+                RevHubOrientationOnRobot.UsbFacingDirection.valueOf(config.turret.orientation.usb);
+          } catch (Exception ignored) {
+          }
         }
-      }
 
-      IMU.Parameters parameters = new IMU.Parameters(new RevHubOrientationOnRobot(logoDir, usbDir));
-      turnIMU.initialize(parameters);
-      turnIMU.resetYaw();
-    } catch (Exception e) {
-      telemetry.addData("IMU Error", e.getMessage());
+        IMU.Parameters parameters =
+            new IMU.Parameters(new RevHubOrientationOnRobot(logoDir, usbDir));
+        turnIMU.initialize(parameters);
+        turnIMU.resetYaw();
+      } catch (Exception e) {
+        turnIMU = null;
+        telemetry.addData("IMU Error", e.getMessage());
+      }
+    } else {
+      turnIMU = null;
+      telemetry.addLine("turnpinpoint disabled by configuration");
     }
 
     startImuAngle = getRawImuAngle();

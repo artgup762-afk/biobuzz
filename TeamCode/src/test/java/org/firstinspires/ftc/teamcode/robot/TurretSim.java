@@ -84,7 +84,13 @@ final class TurretSim {
         };
     Mockito.when(hw.get(CRServo.class, "turn")).thenReturn(servo);
     Mockito.when(hw.get(AnalogInput.class, "turnanalog")).thenReturn(analog);
-    turret = new Turret(hw, (Telemetry) null, () -> pose, () -> velocity, () -> nanos);
+    boolean dual = config.turret.dual_position.enabled;
+    try {
+      config.turret.dual_position.enabled = false; // This simulator models the legacy CR plant.
+      turret = new Turret(hw, (Telemetry) null, () -> pose, () -> velocity, () -> nanos);
+    } finally {
+      config.turret.dual_position.enabled = dual;
+    }
   }
 
   private double measuredAngle() {

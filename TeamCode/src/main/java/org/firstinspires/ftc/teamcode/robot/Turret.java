@@ -17,7 +17,9 @@ import org.firstinspires.ftc.teamcode.robot.config.generated.config;
 import org.firstinspires.ftc.teamcode.utilities.AntiWindupIntegrator;
 
 /**
- * CRServo turret with an absolute analog encoder.
+ * Turret with a dual positional Axon backend or the legacy CRServo/analog backend. The Axon backend
+ * uses its own internal servo loops and separately calibrated angle mapping. The CR control law and
+ * its convergence proof below apply only to the legacy backend.
  *
  * <p>The servo commands speed, not position, so the turret is an integrator: power sets angular
  * velocity. The loop is therefore P (plus a static-friction step) to close position, an optional
@@ -44,8 +46,9 @@ public class Turret {
   private double ksNegative;
   private double maxPower;
 
-  private final CRServo turnServo;
-  private final AnalogInput turnAnalog;
+  private final @Nullable DualPositionTurret dualPosition;
+  private final @Nullable CRServo turnServo;
+  private final @Nullable AnalogInput turnAnalog;
   private final Telemetry telemetry;
 
   private final PIDController pidfController;
@@ -124,14 +127,15 @@ public class Turret {
 
     // A robot built without a turret sets turret.enabled false and may omit both devices.
     boolean required = config.turret == null || config.turret.enabled;
-    turnServo =
-        required
-            ? hardwareMap.get(CRServo.class, "turn")
-            : hardwareMap.tryGet(CRServo.class, "turn");
-    turnAnalog =
-        required
-            ? hardwareMap.get(AnalogInput.class, "turnanalog")
-            : hardwareMap.tryGet(AnalogInput.class, "turnanalog");
+    if (config.turret.dual_position.enabled && required) {
+      dualPosition = new DualPositionTurret(hardwareMap, nanoClock);
+      turnServo = null;
+      turnAnalog = null;
+    } else {
+      dualPosition = null;
+      turnServo = required ? hardwareMap.get(CRServo.class, "turn") : null;
+      turnAnalog = required ? hardwareMap.get(AnalogInput.class, "turnanalog") : null;
+    }
 
     if (turnServo != null && config.turret != null) {
       boolean flip = config.turret.servo_direction_inverted;
@@ -146,6 +150,10 @@ public class Turret {
     if (config.turret != null && config.turret.analog_encoder != null) {
       this.zeroVoltageOffset = config.turret.analog_encoder.zero_voltage;
     }
+  }
+
+  public static @Nullable String positionalConfigurationProblem() {
+    return config.turret.dual_position.enabled ? DualPositionTurret.configurationProblem() : null;
   }
 
   public final void reloadFromConfig() {
@@ -252,6 +260,7 @@ public class Turret {
 
   /** True when the desired angle is beyond the travel limits: turn the chassis instead. */
   public boolean isTargetOutsideTravel() {
+    if (dualPosition != null) return !dualPosition.reachable(desiredTurnAngle);
     var travel = config.turret.travel;
     return desiredTurnAngle < travel.min_angle || desiredTurnAngle > travel.max_angle;
   }
@@ -265,6 +274,7 @@ public class Turret {
   }
 
   public double getRawVoltage() {
+    if (dualPosition != null) return dualPosition.rawVoltage();
     if (turnAnalog != null && config.turret.analog_encoder.enabled) {
       return turnAnalog.getVoltage();
     }
@@ -282,6 +292,7 @@ public class Turret {
   }
 
   public double getCurrentTurnAngle() {
+    if (dualPosition != null) return dualPosition.currentAngle();
     if (turnAnalog != null && config.turret.analog_encoder.enabled) {
       return angleForVoltage(turnAnalog.getVoltage());
     }
@@ -302,6 +313,16 @@ public class Turret {
   }
 
   public double[] getReachableAngleRange() {
+    if (dualPosition != null) {
+      if (!DualPositionTurret.calibrated()) return new double[] {Double.NaN, Double.NaN};
+      double bound =
+          Math.abs(DualPositionTurret.degreesPerPosition())
+              * config.turret_servo_test.max_jog_offset;
+      return new double[] {
+        Math.max(-bound, config.turret.travel.min_angle),
+        Math.min(bound, config.turret.travel.max_angle)
+      };
+    }
     return reachableAngleRange(getZeroVoltage());
   }
 
@@ -313,6 +334,10 @@ public class Turret {
   }
 
   public @Nullable String getEncoderRangeWarning() {
+    if (dualPosition != null)
+      return DualPositionTurret.calibrated()
+          ? null
+          : "Dual Axon angle calibration not verified; automatic aiming locked";
     return encoderRangeWarning(getZeroVoltage());
   }
 
@@ -385,12 +410,13 @@ public class Turret {
   }
 
   public @Nullable String getPowerBlockedReason() {
-    return powerBlockedReason;
+    return dualPosition != null ? dualPosition.blockedReason() : powerBlockedReason;
   }
 
   private @Nullable String powerBlockedReason = null;
 
   public void clearFault() {
+    if (dualPosition != null) dualPosition.clearFault();
     faultReason = null;
     faultIsStall = false;
     stallReferenceAngle = Double.NaN;
@@ -398,11 +424,11 @@ public class Turret {
   }
 
   public boolean isFaulted() {
-    return faultReason != null;
+    return dualPosition != null ? dualPosition.faultReason() != null : faultReason != null;
   }
 
   public @Nullable String getFaultReason() {
-    return faultReason;
+    return dualPosition != null ? dualPosition.faultReason() : faultReason;
   }
 
   private @Nullable String faultReason = null;
@@ -502,6 +528,12 @@ public class Turret {
    * watchdog then judges the power actually delivered.
    */
   public void setTurretPowerRaw(double requested) {
+    if (dualPosition != null) {
+      // Legacy callers can request manual input, but hardware still changes only in periodic().
+      setManualPower(requested);
+      setAimMode(AimMode.MANUAL);
+      return;
+    }
     boolean enabled = isEnabled();
     boolean finite = Double.isFinite(requested);
     if (finite && enabled) {
@@ -555,7 +587,7 @@ public class Turret {
       return "TURRET DISABLED";
     }
     if (isFaulted()) {
-      return faultReason;
+      return dualPosition != null ? dualPosition.faultReason() : faultReason;
     }
     if (!TurretLaw.readingTrusted(angle, travel.min_angle, travel.max_angle, FAULT_MARGIN_DEG)) {
       return String.format(
@@ -591,6 +623,11 @@ public class Turret {
    * not run for {@link #MAX_CONTROL_GAP_SEC}, so time spent idle is never integrated.
    */
   public void updateTurret(Pose currentPose) {
+    if (dualPosition != null) {
+      setHoldAngle(targetTurnAngle);
+      setAimMode(AimMode.HOLD);
+      return;
+    }
     double relativeTurretAngle = getCurrentTurnAngle();
     if (!ShotInputs.isFinitePose(currentPose)
         || !Double.isFinite(targetTurnAngle)
@@ -779,6 +816,13 @@ public class Turret {
    * turret must never report aimed while the chassis faces away from the CELL.
    */
   public boolean isAimed(Pose currentPose) {
+    if (dualPosition != null)
+      return isEnabled()
+          && (mode == AimMode.HOLD || mode == AimMode.AIM_AT_TARGET)
+          && ShotInputs.isFinitePose(currentPose)
+          && dualPosition.aimed(
+              currentDesiredAngle(currentPose),
+              calculateDynamicTolerance(distanceToTarget(currentPose)));
     if (!isEnabled()) {
       return Math.abs(getChassisAimErrorDeg(currentPose))
           < calculateDynamicTolerance(distanceToTarget(currentPose))
@@ -848,6 +892,28 @@ public class Turret {
   }
 
   public void periodic() {
+    if (dualPosition != null) {
+      Pose pose = poseSupplier.get();
+      double desired = ShotInputs.isFinitePose(pose) ? currentDesiredAngle(pose) : Double.NaN;
+      setTargetTurnAngle(desired);
+      dualPosition.periodic(isEnabled(), mode, desired, manualPower);
+      isTurnDone = isAimed(pose);
+      if (telemetry != null) {
+        telemetry.addData(
+            "Turret backend",
+            "Dual positional Axon: "
+                + config.turret_servo_test.left_servo_name
+                + " / "
+                + config.turret_servo_test.right_servo_name);
+        telemetry.addData(
+            "Turret status",
+            dualPosition.blockedReason() == null ? "Enabled" : dualPosition.blockedReason());
+        telemetry.addData("Turret calibrated angle", getCurrentTurnAngle());
+        telemetry.addData("Turret desired angle", desired);
+        telemetry.addData("Turret aimed", isTurnDone);
+      }
+      return;
+    }
     if (!isEnabled()) {
       lastControlNanos = Long.MIN_VALUE;
       setTurretPowerRaw(0);

@@ -82,6 +82,13 @@ public class TurretPlantCalibrationOpMode extends LinearOpMode {
   public void runOpMode() throws InterruptedException {
     config.reload();
     OpModeUtil.reportConfig(telemetry); // a rejected push or broken tuning, at INIT
+    if (config.turret.dual_position.enabled) {
+      telemetry.addLine("This power/velocity calibration is for CR servos only.");
+      telemetry.addLine("Use Dual Axon Turret Test for the installed positional servos.");
+      telemetry.update();
+      waitForStart();
+      return;
+    }
     for (LynxModule module : hardwareMap.getAll(LynxModule.class)) {
       module.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL);
     }

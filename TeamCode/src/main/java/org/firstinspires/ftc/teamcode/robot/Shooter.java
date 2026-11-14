@@ -9,6 +9,7 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
+import java.util.Locale;
 import java.util.function.LongSupplier;
 import org.firstinspires.ftc.teamcode.robot.config.generated.config;
 import org.firstinspires.ftc.teamcode.utilities.AntiWindupIntegrator;
@@ -80,11 +81,11 @@ public class Shooter {
 
     shooter1.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
     shooter1.setMode(initialMode);
-    shooter1.setDirection(DcMotorSimple.Direction.FORWARD);
+    shooter1.setDirection(DcMotorSimple.Direction.REVERSE);
 
     shooter2.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
     shooter2.setMode(initialMode);
-    shooter2.setDirection(DcMotorSimple.Direction.REVERSE);
+    shooter2.setDirection(DcMotorSimple.Direction.FORWARD);
 
     pidfController = new PIDController(config.shooter.pidf.p, 0.0, config.shooter.pidf.d);
 
@@ -106,6 +107,25 @@ public class Shooter {
 
   public double getShooterVelocity() {
     return shooter1.getVelocity();
+  }
+
+  /** Each encoder is reported separately; power is a command, not proof of shaft motion. */
+  public String getFirstMotorStatus() {
+    return motorStatus(shooter1);
+  }
+
+  public String getSecondMotorStatus() {
+    return motorStatus(shooter2);
+  }
+
+  private static String motorStatus(DcMotorEx motor) {
+    return String.format(
+        Locale.ROOT,
+        "%.0f ticks/s; command %.2f; %s; port %d",
+        motor.getVelocity(),
+        motor.getPower(),
+        motor.getDirection(),
+        motor.getPortNumber());
   }
 
   /** Requests a stop; hardware changes on the next periodic() pass. */

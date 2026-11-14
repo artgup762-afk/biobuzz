@@ -7,14 +7,15 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.DigitalChannel;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+import java.util.Locale;
 import org.firstinspires.ftc.teamcode.robot.config.generated.config;
 import org.firstinspires.ftc.teamcode.utilities.BallInventory;
 
 /**
- * Front intake and middle transfer rollers, plus the G407 four-element inventory.
+ * Single-motor intake and feed mechanism, plus the G407 four-element inventory.
  *
  * <p>Single writer: commands, {@link ShotController} and OpModes set a target with {@link #run},
- * {@link #feed}, {@link #eject} or {@link #stop}; only {@link #periodic()} writes the motors. That
+ * {@link #feed}, {@link #eject} or {@link #stop}; only {@link #periodic()} writes motor power. That
  * is where the inventory cap is applied, so no caller can drive a fifth SCORING ELEMENT in by
  * accident.
  */
@@ -28,25 +29,20 @@ public class Intake {
     EJECT
   }
 
-  private final DcMotorEx intakeFront;
-  private final DcMotorEx intakeMid;
+  private final DcMotorEx rightIntake;
   private final @Nullable DigitalChannel entrySensor;
   private final BallInventory inventory;
 
   private Mode mode = Mode.STOPPED;
-  private double targetIntakePower = 0.0;
-  private double targetTransferPower = 0.0;
+  private double targetPower = 0.0;
   private boolean blockedByCapacity = false;
 
   public Intake(HardwareMap hardwareMap) {
-    intakeFront = hardwareMap.get(DcMotorEx.class, "intakeFront");
-    intakeMid = hardwareMap.get(DcMotorEx.class, "intakeMid");
+    rightIntake = hardwareMap.get(DcMotorEx.class, "rightIntake");
 
-    intakeFront.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-    intakeMid.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+    rightIntake.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
-    intakeFront.setDirection(DcMotorSimple.Direction.REVERSE);
-    intakeMid.setDirection(DcMotorSimple.Direction.REVERSE);
+    rightIntake.setDirection(DcMotorSimple.Direction.FORWARD);
 
     var inv = config.inventory;
     DigitalChannel sensor =
@@ -61,33 +57,43 @@ public class Intake {
   }
 
   /** Collect from the floor or a FLOWER: stops itself once the inventory is full. */
-  public void run(double intakePower, double transferPower) {
-    setTarget(Mode.COLLECT, intakePower, transferPower);
+  public void run(double power) {
+    setTarget(Mode.COLLECT, power);
   }
 
   /** Push SCORING ELEMENTS into the shooter. Not capped: feeding only ever empties the robot. */
-  public void feed(double intakePower, double transferPower) {
-    setTarget(Mode.FEED, intakePower, transferPower);
+  public void feed(double power) {
+    setTarget(Mode.FEED, power);
   }
 
   /** Reverse everything to spit out a fifth element (G407) or opponent NECTAR (G408). */
   public void eject(double power) {
     double reverse = -Math.abs(power);
-    setTarget(Mode.EJECT, reverse, reverse);
+    setTarget(Mode.EJECT, reverse);
   }
 
   public void stop() {
-    setTarget(Mode.STOPPED, 0.0, 0.0);
+    setTarget(Mode.STOPPED, 0.0);
   }
 
-  private void setTarget(Mode newMode, double intakePower, double transferPower) {
+  private void setTarget(Mode newMode, double power) {
     mode = newMode;
-    targetIntakePower = intakePower;
-    targetTransferPower = transferPower;
+    targetPower = power;
   }
 
   public Mode mode() {
     return mode;
+  }
+
+  /** Read the actual intake controller, independently of the bridge's hub-index mapping. */
+  public String getMotorStatus() {
+    return String.format(
+        Locale.ROOT,
+        "%s; %.0f ticks/s; command %.2f; port %d",
+        mode,
+        rightIntake.getVelocity(),
+        rightIntake.getPower(),
+        rightIntake.getPortNumber());
   }
 
   public boolean isRunning() {
@@ -108,7 +114,7 @@ public class Intake {
     return BallInventory.mayCollect(inventory.isKnown(), inventory.count(), inventory.capacity());
   }
 
-  /** The only place the intake motors are written. Called once per loop by Robot.update(). */
+  /** The only place intake motor power is written. Called once per loop by Robot.update(). */
   public void periodic() {
     if (entrySensor != null) {
       boolean raw = entrySensor.getState();
@@ -124,15 +130,11 @@ public class Intake {
 
     blockedByCapacity = mode == Mode.COLLECT && !mayCollect();
     boolean powered = mode != Mode.STOPPED && !blockedByCapacity;
-    intakeFront.setPower(powered ? targetIntakePower : 0.0);
-    intakeMid.setPower(powered ? targetTransferPower : 0.0);
+    rightIntake.setPower(powered ? targetPower : 0.0);
   }
 
-  public Command runIntakeCommand(double intakePower, double transferPower) {
-    return Command.build()
-        .setStart(() -> run(intakePower, transferPower))
-        .setEnd(interrupted -> stop())
-        .requiring(this);
+  public Command runIntakeCommand(double power) {
+    return Command.build().setStart(() -> run(power)).setEnd(interrupted -> stop()).requiring(this);
   }
 
   public Command ejectCommand(double power) {

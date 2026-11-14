@@ -22,7 +22,8 @@ import org.firstinspires.ftc.teamcode.utilities.Casablanca;
  * aim-and-shoot, Y (hold) turret aim, X (hold) rev, dpad up fixed-power shot, left trigger cancels
  * everything, dpad down (hold) vision relocalize, left bumper records a TIP the camera missed, back
  * undoes one, right bumper toggles POLLEN/NECTAR shot tables (only while {@code
- * shooter.shot_table.nectar_enabled}), left stick button marks the robot empty.
+ * shooter.shot_table.nectar_enabled}), left stick button marks the robot empty. Operator D-pad left
+ * toggles the flower flap DOWN/UP; the first press lowers it.
  */
 @Configurable
 @com.qualcomm.robotcore.eventloop.opmode.TeleOp(name = "TeleOp", group = "!")
@@ -34,6 +35,7 @@ public class TeleOp extends TeleOpBase {
   private Command shootPoseCommand;
   private Command flowerPoseCommand;
   private Command intakeCommand;
+  private Command flapToggleCommand;
   private Command ejectCommand;
   private Command aimAndShootCommand;
   private Command aimCommand;
@@ -57,8 +59,8 @@ public class TeleOp extends TeleOpBase {
     flowerPoseCommand =
         Command.build().setStart(() -> holdPoseIfClear(profile.flowerPose())).requiring(follower);
 
-    intakeCommand =
-        intake.runIntakeCommand(config.teleop.intake_power, config.teleop.transfer_power);
+    intakeCommand = intake.runIntakeCommand(config.teleop.intake_power);
+    flapToggleCommand = flap.toggleCommand();
 
     ejectCommand = intake.ejectCommand(config.teleop.eject_power);
 
@@ -67,14 +69,20 @@ public class TeleOp extends TeleOpBase {
 
     // Turret only, no flywheel. Aim (operator Y) and rev (operator X) are separate commands over
     // disjoint subsystems so holding both composes into aim-and-spin-up.
+    /*aimCommand =
+    Command.build()
+        .setStart(() -> turret.setAimMode(Turret.AimMode.AIM_AT_TARGET))
+        .setEnd(
+            interrupted -> {
+              turret.setHoldAngle(0.0);
+              turret.setAimMode(Turret.AimMode.HOLD);
+            })
+        .requiring(turret);*/
+
     aimCommand =
         Command.build()
             .setStart(() -> turret.setAimMode(Turret.AimMode.AIM_AT_TARGET))
-            .setEnd(
-                interrupted -> {
-                  turret.setHoldAngle(0.0);
-                  turret.setAimMode(Turret.AimMode.HOLD);
-                })
+            .setEnd(interrupted -> turret.setAimMode(Turret.AimMode.AIM_AT_TARGET))
             .requiring(turret);
 
     shootManualCommand =
@@ -101,11 +109,21 @@ public class TeleOp extends TeleOpBase {
 
   @Override
   protected void onLoop() {
+    CellTarget target = shotController.currentTarget();
+    turret.setTargetPoint(target.x(), target.y());
+
+    if (!Scheduler.isScheduled(aimAndShootCommand)
+        && turret.getAimMode() != Turret.AimMode.AIM_AT_TARGET) {
+      turret.setAimMode(Turret.AimMode.AIM_AT_TARGET);
+    }
     handleOperator();
     handleDriver();
   }
 
   private void handleOperator() {
+    if (operatorDpadLeft.onTrue()) {
+      flapToggleCommand.schedule();
+    }
     if (operatorA.onTrue()) {
       intakeCommand.schedule();
     }
@@ -153,6 +171,8 @@ public class TeleOp extends TeleOpBase {
       manualRevCommand.cancel();
       intakeCommand.cancel();
       ejectCommand.cancel();
+      flapToggleCommand.cancel();
+      flap.stop();
     }
 
     // HIVE bookkeeping the camera may have missed. Each press changes the tracker's epoch, which

@@ -37,6 +37,7 @@ public class TurretMigrationDiagnosticTest {
     HardwareMap hardwareMap = Mockito.mock(HardwareMap.class);
     mockServo = Mockito.mock(CRServo.class);
     DcMotorEx mockMotor = Mockito.mock(DcMotorEx.class);
+    config.turret.dual_position.enabled = false; // This fixture models a CR servo.
     Mockito.when(hardwareMap.get(CRServo.class, "turn")).thenReturn(mockServo);
 
     AnalogInput mockAnalog = Mockito.mock(AnalogInput.class);

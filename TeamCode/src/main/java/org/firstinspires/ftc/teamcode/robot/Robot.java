@@ -25,10 +25,72 @@ import org.firstinspires.ftc.teamcode.utilities.Sentinel;
  */
 public final class Robot {
 
+  /** Flap commissioning without constructing the drivetrain, shooter, turret or camera. */
+  public static final class FlapTestRig {
+    public final FlowerFlap flap;
+    private boolean closed;
+
+    public FlapTestRig(HardwareMap hardwareMap) {
+      Scheduler.reset();
+      flap = new FlowerFlap(hardwareMap, true);
+    }
+
+    public void update() {
+      if (closed) return;
+      Scheduler.execute();
+      flap.periodic();
+    }
+
+    public void shutdown() {
+      if (closed) return;
+      Scheduler.reset();
+      flap.stop();
+      try {
+        update();
+      } finally {
+        closed = true;
+      }
+    }
+  }
+
+  /** Isolated commissioning container: creates no drivetrain, shooter or legacy CRServo turret. */
+  public static final class TurretTestRig {
+    public final DualAxonTurretTest turret;
+    private final List<LynxModule> hubs;
+    private boolean closed;
+
+    public TurretTestRig(HardwareMap hardwareMap) {
+      Scheduler.reset();
+      hubs = hardwareMap.getAll(LynxModule.class);
+      turret = new DualAxonTurretTest(hardwareMap);
+    }
+
+    public void update() {
+      if (closed) return;
+      // Another OpMode may have left MANUAL bulk caching enabled. AnalogInput then returns the
+      // same cached voltage forever unless this loop clears the cache before reading feedback.
+      for (LynxModule hub : hubs) hub.clearBulkCache();
+      Scheduler.execute();
+      turret.periodic();
+    }
+
+    public void shutdown() {
+      if (closed) return;
+      Scheduler.reset();
+      turret.stop();
+      try {
+        update();
+      } finally {
+        closed = true;
+      }
+    }
+  }
+
   public final Follower follower;
   public final Intake intake;
   public final Shooter shooter;
   public final Turret turret;
+  public final FlowerFlap flap;
   public final HiveVision vision;
   public final FieldModel field;
   public final HiveTracker hive;
@@ -44,6 +106,12 @@ public final class Robot {
   private @Nullable Long blueTagsSeenMs = null;
 
   public Robot(HardwareMap hardwareMap, Telemetry telemetry, MatchProfile profile) {
+    this(hardwareMap, telemetry, profile, false);
+  }
+
+  /** The flap is mapped only for TeleOp; autonomous composition keeps its existing hardware. */
+  public Robot(
+      HardwareMap hardwareMap, Telemetry telemetry, MatchProfile profile, boolean forTeleOp) {
     this.telemetry = telemetry;
 
     allHubs = hardwareMap.getAll(LynxModule.class);
@@ -56,6 +124,7 @@ public final class Robot {
     field = new FieldModel(profile.alliance());
     hive = HiveTracker.fromConfig(Robot::nowMs);
 
+    flap = new FlowerFlap(hardwareMap, forTeleOp);
     intake = new Intake(hardwareMap);
     shooter = new Shooter(hardwareMap);
     turret = new Turret(hardwareMap, telemetry, follower::pose, follower::velocity);
@@ -90,6 +159,13 @@ public final class Robot {
    * the only hardware writes, so every target set this loop reaches the motors this loop.
    */
   public void update() {
+    if (shutDown) {
+      intake.periodic();
+      shooter.periodic();
+      turret.periodic();
+      flap.periodic();
+      return;
+    }
     for (LynxModule module : allHubs) {
       module.clearBulkCache();
     }
@@ -103,6 +179,7 @@ public final class Robot {
     intake.periodic();
     shooter.periodic();
     turret.periodic();
+    flap.periodic();
   }
 
   /**
@@ -185,6 +262,10 @@ public final class Robot {
     Scheduler.reset();
     shotController.stopShot();
     shotController.shutdown();
+    turret.setAimMode(Turret.AimMode.IDLE);
+    turret.setEnabled(false);
+    flap.stop();
+    update(); // Apply stop targets through the same subsystem writers, including Axon PWM disable.
     vision.close();
   }
 }

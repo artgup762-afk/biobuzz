@@ -9,7 +9,7 @@ import com.qualcomm.robotcore.hardware.CRServo;
 @TeleOp(name = "Turn Analog Test", group = "Test")
 public class TurnAnalogTest extends OpMode {
 
-  private AnalogInput turnAnalog;
+  private AnalogInput turnAnalogLeft;
   private CRServo turnServo;
   private double minVoltage = 3.3;
   private double maxVoltage = 0.0;
@@ -20,7 +20,7 @@ public class TurnAnalogTest extends OpMode {
     org.firstinspires.ftc.teamcode.utilities.OpModeUtil.reportConfig(telemetry);
 
     try {
-      turnAnalog = hardwareMap.get(AnalogInput.class, "turnanalog");
+      turnAnalogLeft = hardwareMap.get(AnalogInput.class, "turnAnalogLeft");
     } catch (Exception ignored) {
     }
 
@@ -30,10 +30,10 @@ public class TurnAnalogTest extends OpMode {
     }
 
     telemetry.addLine("=== TURN ANALOG SERVO TESTER ===");
-    if (turnAnalog != null) {
-      telemetry.addLine("AnalogInput 'turnanalog' connected");
+    if (turnAnalogLeft != null) {
+      telemetry.addLine("AnalogInput 'turnAnalogLeft' connected");
     } else {
-      telemetry.addLine("ERROR: AnalogInput 'turnanalog' NOT FOUND in Hardware Map!");
+      telemetry.addLine("ERROR: AnalogInput 'turnAnalogLeft' NOT FOUND in Hardware Map!");
     }
     if (turnServo != null) {
       telemetry.addLine("CRServo 'turn' detected - pull triggers to drive servo");
@@ -47,13 +47,13 @@ public class TurnAnalogTest extends OpMode {
   @SuppressLint("DefaultLocale")
   @Override
   public void loop() {
-    if (turnAnalog == null) {
+    if (turnAnalogLeft == null) {
       telemetry.addLine("=== ERROR: MISSING ANALOG INPUT ===");
-      telemetry.addLine("Configure AnalogInput 'turnanalog' on Expansion Hub!");
+      telemetry.addLine("Configure AnalogInput 'turnAnalogLeft' on Expansion Hub!");
       telemetry.update();
       return;
     }
-    double rawVoltage = turnAnalog.getVoltage();
+    double rawVoltage = turnAnalogLeft.getVoltage();
     double normalizedPosition = rawVoltage / 3.3;
     double degrees = normalizedPosition * 360.0;
 
@@ -90,7 +90,7 @@ public class TurnAnalogTest extends OpMode {
                   .max_power_output);
     }
 
-    telemetry.addLine("=== ANALOG INPUT: 'turnanalog' ===");
+    telemetry.addLine("=== ANALOG INPUT: 'turnAnalogLeft' ===");
     telemetry.addData("Raw Voltage", String.format("%.3f V / 3.300 V", rawVoltage));
     telemetry.addData(
         "Normalized Position", String.format("%.4f (0.0 to 1.0)", normalizedPosition));

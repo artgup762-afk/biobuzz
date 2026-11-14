@@ -65,6 +65,7 @@ public class TurretLoopDiagnosticTest {
             return cmdDir[0];
           }
         };
+    config.turret.dual_position.enabled = false; // This fixture models a CR servo.
     Mockito.when(hardwareMap.get(CRServo.class, "turn")).thenReturn(servo);
 
     voltageBox = new double[] {config.turret.analog_encoder.zero_voltage};

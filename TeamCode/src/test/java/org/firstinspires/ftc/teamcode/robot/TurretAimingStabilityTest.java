@@ -61,6 +61,7 @@ public class TurretAimingStabilityTest {
     HardwareMap hw = Mockito.mock(HardwareMap.class);
     CRServo servo = Mockito.mock(CRServo.class);
     AnalogInput analog = Mockito.mock(AnalogInput.class);
+    config.turret.dual_position.enabled = false; // This fixture models a CR servo.
     Mockito.when(hw.get(CRServo.class, "turn")).thenReturn(servo);
     Mockito.when(hw.get(AnalogInput.class, "turnanalog")).thenReturn(analog);
     Mockito.doAnswer(

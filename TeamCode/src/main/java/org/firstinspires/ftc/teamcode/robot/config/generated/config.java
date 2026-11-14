@@ -16,12 +16,14 @@ public final class config {
   public static Match match;
   public static Inventory inventory;
   public static Pedro pedro;
+  public static TurretServoTest turret_servo_test;
   public static Turret turret;
   public static Vision vision;
   public static Sentinel sentinel;
   public static Casablanca casablanca;
   public static Shooter shooter;
   public static Auto auto;
+  public static Flap flap;
   public static Teleop teleop;
   public static AgentBridge agent_bridge;
 
@@ -104,7 +106,35 @@ public final class config {
   public static double PEDRO_MOTION_NATURAL_FORWARD_DECELERATION;
   public static double PEDRO_MOTION_NATURAL_STRAFE_DECELERATION;
   public static double PEDRO_MOTION_MAX_PATH_SPEED;
+  public static String TURRET_SERVO_TEST_LEFT_SERVO_NAME;
+  public static String TURRET_SERVO_TEST_RIGHT_SERVO_NAME;
+  public static String TURRET_SERVO_TEST_LEFT_ANALOG_NAME;
+  public static String TURRET_SERVO_TEST_RIGHT_ANALOG_NAME;
+  public static double TURRET_SERVO_TEST_PWM_LOWER_US;
+  public static double TURRET_SERVO_TEST_PWM_UPPER_US;
+  public static double TURRET_SERVO_TEST_LEFT_CENTER_POSITION;
+  public static double TURRET_SERVO_TEST_RIGHT_CENTER_POSITION;
+  public static boolean TURRET_SERVO_TEST_LEFT_REVERSED;
+  public static boolean TURRET_SERVO_TEST_RIGHT_REVERSED;
+  public static double TURRET_SERVO_TEST_MAX_JOG_OFFSET;
+  public static double TURRET_SERVO_TEST_JOG_STEP_POSITION;
+  public static double TURRET_SERVO_TEST_MAX_ENABLE_SEC;
+  public static boolean TURRET_SERVO_TEST_PAIR_VERIFIED;
   public static boolean TURRET_ENABLED;
+  public static boolean TURRET_TURN_PINPOINT_ENABLED;
+  public static boolean TURRET_DUAL_POSITION_ENABLED;
+  public static boolean TURRET_DUAL_POSITION_ANGLE_CALIBRATED;
+  public static double TURRET_DUAL_POSITION_SERVO_GEAR_TEETH;
+  public static double TURRET_DUAL_POSITION_TURRET_GEAR_TEETH;
+  public static double TURRET_DUAL_POSITION_SERVO_SWEEP_DEG;
+  public static boolean TURRET_DUAL_POSITION_POSITIVE_OFFSET_CCW;
+  public static double TURRET_DUAL_POSITION_LEFT_REFERENCE_VOLTS;
+  public static double TURRET_DUAL_POSITION_RIGHT_REFERENCE_VOLTS;
+  public static double TURRET_DUAL_POSITION_LEFT_VOLTS_PER_POSITION;
+  public static double TURRET_DUAL_POSITION_RIGHT_VOLTS_PER_POSITION;
+  public static double TURRET_DUAL_POSITION_MANUAL_POSITION_PER_SEC;
+  public static double TURRET_DUAL_POSITION_FEEDBACK_STARTUP_SEC;
+  public static double TURRET_DUAL_POSITION_MAX_UPDATE_GAP_SEC;
   public static double TURRET_MAX_POWER_OUTPUT;
   public static boolean TURRET_SERVO_DIRECTION_INVERTED;
   public static double TURRET_KS_POSITIVE;
@@ -264,11 +294,15 @@ public final class config {
   public static double SHOOTER_MAX_VELOCITY_THRESHOLD;
   public static double SHOOTER_FEED_RELEASE_THRESHOLD;
   public static double SHOOTER_FEED_INTAKE_POWER;
-  public static double SHOOTER_FEED_TRANSFER_POWER;
   public static double SHOOTER_BALL_DETECTION_DIP_FRACTION;
   public static double SHOOTER_BALL_DETECTION_REBOUND_FRACTION;
   public static double SHOOTER_BALL_DETECTION_BASELINE_ALPHA;
   public static int SHOOTER_BALL_DETECTION_REFRACTORY_MS;
+  public static boolean SHOOTER_TIMING_TUNER_BENCH_MODE;
+  public static double[] SHOOTER_TIMING_TUNER_DISTANCES_IN;
+  public static double SHOOTER_TIMING_TUNER_RAY_OFF_AXIS_DEG;
+  public static double SHOOTER_TIMING_TUNER_DIP_STEP;
+  public static double SHOOTER_TIMING_TUNER_TRIGGER_THRESHOLD;
   public static double SHOOTER_PIDF_P;
   public static double SHOOTER_PIDF_I;
   public static double SHOOTER_PIDF_D;
@@ -318,15 +352,22 @@ public final class config {
   public static int AUTO_PARK_MARGIN_MS;
   public static int AUTO_PARK_RESERVE_MS;
   public static int AUTO_PARK_UPDATE_MS;
-  public static double AUTO_TRANSFER_POWER;
+  public static double AUTO_INTAKE_POWER;
   public static boolean AUTO_CELL_A_COLLECT_FLOWER;
   public static boolean AUTO_CELL_A_SECOND_VOLLEY;
   public static boolean AUTO_CELL_B_COLLECT_FLOWER;
+  public static boolean FLAP_ENABLED;
+  public static String FLAP_SERVO_NAME;
+  public static double FLAP_PWM_LOWER_US;
+  public static double FLAP_PWM_UPPER_US;
+  public static double FLAP_SERVO_RANGE_DEG;
+  public static double FLAP_UP_ANGLE_DEG;
+  public static double FLAP_DOWN_ANGLE_DEG;
+  public static boolean FLAP_REVERSED;
   public static double TELEOP_MAX_SPEED;
   public static boolean TELEOP_FIELD_CENTRIC;
   public static double TELEOP_FIELD_CENTRIC_OFFSET_DEG;
   public static double TELEOP_INTAKE_POWER;
-  public static double TELEOP_TRANSFER_POWER;
   public static double TELEOP_MANUAL_REV_POWER;
   public static double TELEOP_EJECT_POWER;
   public static boolean TELEOP_FLOWER_HOLD_ENABLED;
@@ -370,12 +411,14 @@ public final class config {
     match = ConfigLoader.load(Match.class, "match");
     inventory = ConfigLoader.load(Inventory.class, "inventory");
     pedro = ConfigLoader.load(Pedro.class, "pedro");
+    turret_servo_test = ConfigLoader.load(TurretServoTest.class, "turret_servo_test");
     turret = ConfigLoader.load(Turret.class, "turret");
     vision = ConfigLoader.load(Vision.class, "vision");
     sentinel = ConfigLoader.load(Sentinel.class, "sentinel");
     casablanca = ConfigLoader.load(Casablanca.class, "casablanca");
     shooter = ConfigLoader.load(Shooter.class, "shooter");
     auto = ConfigLoader.load(Auto.class, "auto");
+    flap = ConfigLoader.load(Flap.class, "flap");
     teleop = ConfigLoader.load(Teleop.class, "teleop");
     agent_bridge = ConfigLoader.load(AgentBridge.class, "agent_bridge");
     META_SEASON = meta.season;
@@ -457,7 +500,35 @@ public final class config {
     PEDRO_MOTION_NATURAL_FORWARD_DECELERATION = pedro.motion.natural_forward_deceleration;
     PEDRO_MOTION_NATURAL_STRAFE_DECELERATION = pedro.motion.natural_strafe_deceleration;
     PEDRO_MOTION_MAX_PATH_SPEED = pedro.motion.max_path_speed;
+    TURRET_SERVO_TEST_LEFT_SERVO_NAME = turret_servo_test.left_servo_name;
+    TURRET_SERVO_TEST_RIGHT_SERVO_NAME = turret_servo_test.right_servo_name;
+    TURRET_SERVO_TEST_LEFT_ANALOG_NAME = turret_servo_test.left_analog_name;
+    TURRET_SERVO_TEST_RIGHT_ANALOG_NAME = turret_servo_test.right_analog_name;
+    TURRET_SERVO_TEST_PWM_LOWER_US = turret_servo_test.pwm_lower_us;
+    TURRET_SERVO_TEST_PWM_UPPER_US = turret_servo_test.pwm_upper_us;
+    TURRET_SERVO_TEST_LEFT_CENTER_POSITION = turret_servo_test.left_center_position;
+    TURRET_SERVO_TEST_RIGHT_CENTER_POSITION = turret_servo_test.right_center_position;
+    TURRET_SERVO_TEST_LEFT_REVERSED = turret_servo_test.left_reversed;
+    TURRET_SERVO_TEST_RIGHT_REVERSED = turret_servo_test.right_reversed;
+    TURRET_SERVO_TEST_MAX_JOG_OFFSET = turret_servo_test.max_jog_offset;
+    TURRET_SERVO_TEST_JOG_STEP_POSITION = turret_servo_test.jog_step_position;
+    TURRET_SERVO_TEST_MAX_ENABLE_SEC = turret_servo_test.max_enable_sec;
+    TURRET_SERVO_TEST_PAIR_VERIFIED = turret_servo_test.pair_verified;
     TURRET_ENABLED = turret.enabled;
+    TURRET_TURN_PINPOINT_ENABLED = turret.turn_pinpoint_enabled;
+    TURRET_DUAL_POSITION_ENABLED = turret.dual_position.enabled;
+    TURRET_DUAL_POSITION_ANGLE_CALIBRATED = turret.dual_position.angle_calibrated;
+    TURRET_DUAL_POSITION_SERVO_GEAR_TEETH = turret.dual_position.servo_gear_teeth;
+    TURRET_DUAL_POSITION_TURRET_GEAR_TEETH = turret.dual_position.turret_gear_teeth;
+    TURRET_DUAL_POSITION_SERVO_SWEEP_DEG = turret.dual_position.servo_sweep_deg;
+    TURRET_DUAL_POSITION_POSITIVE_OFFSET_CCW = turret.dual_position.positive_offset_ccw;
+    TURRET_DUAL_POSITION_LEFT_REFERENCE_VOLTS = turret.dual_position.left_reference_volts;
+    TURRET_DUAL_POSITION_RIGHT_REFERENCE_VOLTS = turret.dual_position.right_reference_volts;
+    TURRET_DUAL_POSITION_LEFT_VOLTS_PER_POSITION = turret.dual_position.left_volts_per_position;
+    TURRET_DUAL_POSITION_RIGHT_VOLTS_PER_POSITION = turret.dual_position.right_volts_per_position;
+    TURRET_DUAL_POSITION_MANUAL_POSITION_PER_SEC = turret.dual_position.manual_position_per_sec;
+    TURRET_DUAL_POSITION_FEEDBACK_STARTUP_SEC = turret.dual_position.feedback_startup_sec;
+    TURRET_DUAL_POSITION_MAX_UPDATE_GAP_SEC = turret.dual_position.max_update_gap_sec;
     TURRET_MAX_POWER_OUTPUT = turret.max_power_output;
     TURRET_SERVO_DIRECTION_INVERTED = turret.servo_direction_inverted;
     TURRET_KS_POSITIVE = turret.ks_positive;
@@ -621,11 +692,15 @@ public final class config {
     SHOOTER_MAX_VELOCITY_THRESHOLD = shooter.max_velocity_threshold;
     SHOOTER_FEED_RELEASE_THRESHOLD = shooter.feed_release_threshold;
     SHOOTER_FEED_INTAKE_POWER = shooter.feed_intake_power;
-    SHOOTER_FEED_TRANSFER_POWER = shooter.feed_transfer_power;
     SHOOTER_BALL_DETECTION_DIP_FRACTION = shooter.ball_detection.dip_fraction;
     SHOOTER_BALL_DETECTION_REBOUND_FRACTION = shooter.ball_detection.rebound_fraction;
     SHOOTER_BALL_DETECTION_BASELINE_ALPHA = shooter.ball_detection.baseline_alpha;
     SHOOTER_BALL_DETECTION_REFRACTORY_MS = shooter.ball_detection.refractory_ms;
+    SHOOTER_TIMING_TUNER_BENCH_MODE = shooter.timing_tuner.bench_mode;
+    SHOOTER_TIMING_TUNER_DISTANCES_IN = shooter.timing_tuner.distances_in;
+    SHOOTER_TIMING_TUNER_RAY_OFF_AXIS_DEG = shooter.timing_tuner.ray_off_axis_deg;
+    SHOOTER_TIMING_TUNER_DIP_STEP = shooter.timing_tuner.dip_step;
+    SHOOTER_TIMING_TUNER_TRIGGER_THRESHOLD = shooter.timing_tuner.trigger_threshold;
     SHOOTER_PIDF_P = shooter.pidf.p;
     SHOOTER_PIDF_I = shooter.pidf.i;
     SHOOTER_PIDF_D = shooter.pidf.d;
@@ -675,15 +750,22 @@ public final class config {
     AUTO_PARK_MARGIN_MS = auto.park_margin_ms;
     AUTO_PARK_RESERVE_MS = auto.park_reserve_ms;
     AUTO_PARK_UPDATE_MS = auto.park_update_ms;
-    AUTO_TRANSFER_POWER = auto.transfer_power;
+    AUTO_INTAKE_POWER = auto.intake_power;
     AUTO_CELL_A_COLLECT_FLOWER = auto.cell_a_collect_flower;
     AUTO_CELL_A_SECOND_VOLLEY = auto.cell_a_second_volley;
     AUTO_CELL_B_COLLECT_FLOWER = auto.cell_b_collect_flower;
+    FLAP_ENABLED = flap.enabled;
+    FLAP_SERVO_NAME = flap.servo_name;
+    FLAP_PWM_LOWER_US = flap.pwm_lower_us;
+    FLAP_PWM_UPPER_US = flap.pwm_upper_us;
+    FLAP_SERVO_RANGE_DEG = flap.servo_range_deg;
+    FLAP_UP_ANGLE_DEG = flap.up_angle_deg;
+    FLAP_DOWN_ANGLE_DEG = flap.down_angle_deg;
+    FLAP_REVERSED = flap.reversed;
     TELEOP_MAX_SPEED = teleop.max_speed;
     TELEOP_FIELD_CENTRIC = teleop.field_centric;
     TELEOP_FIELD_CENTRIC_OFFSET_DEG = teleop.field_centric_offset_deg;
     TELEOP_INTAKE_POWER = teleop.intake_power;
-    TELEOP_TRANSFER_POWER = teleop.transfer_power;
     TELEOP_MANUAL_REV_POWER = teleop.manual_rev_power;
     TELEOP_EJECT_POWER = teleop.eject_power;
     TELEOP_FLOWER_HOLD_ENABLED = teleop.flower_hold_enabled;
@@ -1162,9 +1244,167 @@ public final class config {
     public Motion motion;
   }
 
+  public static final class TurretServoTest {
+    /** HardwareMap name of the left positional Axon MK2 servo, on Expansion Hub servo port 4. */
+    public String left_servo_name;
+
+    /** HardwareMap name of the right positional Axon MK2 servo, on Control Hub servo port 1. */
+    public String right_servo_name;
+
+    /** HardwareMap name of the left Axon feedback AnalogInput on the Expansion Hub. */
+    public String left_analog_name;
+
+    /** HardwareMap name of the right Axon feedback AnalogInput on the Control Hub. */
+    public String right_analog_name;
+
+    /**
+     * Minimum positional-servo pulse width in microseconds; Axon MK2 documented range begins at 500
+     * us. Must be below pwm_upper_us. Minimum: 500.0 Maximum: 2500.0
+     */
+    public double pwm_lower_us;
+
+    /**
+     * Maximum positional-servo pulse width in microseconds; Axon MK2 documented range ends at 2500
+     * us. Must exceed pwm_lower_us. Minimum: 500.0 Maximum: 2500.0
+     */
+    public double pwm_upper_us;
+
+    /**
+     * Left servo normalized holding position commanded on first manual enable. Recheck after gear
+     * or shaft reassembly; 0.5 is not necessarily the turret center. Minimum: 0.0 Maximum: 1.0
+     */
+    public double left_center_position;
+
+    /**
+     * Right servo normalized holding position corresponding to the same turret reference as the
+     * left. Recheck after gear or shaft reassembly and verify agreement before enabling the pair.
+     * Minimum: 0.0 Maximum: 1.0
+     */
+    public double right_center_position;
+
+    /**
+     * Reverse the left servo jog about its configured center. Does not invert its feedback voltage.
+     */
+    public boolean left_reversed;
+
+    /**
+     * Reverse the right servo jog about its configured center. Choose the direction that assists
+     * the left servo on the coupled turret.
+     */
+    public boolean right_reversed;
+
+    /**
+     * Maximum normalized servo-position offset from each center in both the main positional turret
+     * and isolated test. Centers plus/minus this must remain in [0,1]; not a turret angle limit.
+     * Minimum: 0.001 Maximum: 0.5
+     */
+    public double max_jog_offset;
+
+    /**
+     * Normalized position step for each dpad press while the test enable bumper is held. Must not
+     * exceed max_jog_offset. Minimum: 1.0E-4 Maximum: 0.05
+     */
+    public double jog_step_position;
+
+    /**
+     * Maximum continuous PWM enable duration in the turret test; release the bumper to re-arm after
+     * timeout. Minimum: 0.1 Maximum: 10.0
+     */
+    public double max_enable_sec;
+
+    /**
+     * Mechanical pairing verified for automatic aiming. X plus held LB permits bounded
+     * commissioning while false; set true only after the pair assists without slipping or binding.
+     */
+    public boolean pair_verified;
+  }
+
   public static final class Turret {
     /** Enable/disable this subsystem, controller, watchdog, or feature. */
     public boolean enabled;
+
+    /**
+     * Enable the optional turnpinpoint diagnostic sensor. Keep false when unplugged:
+     * sensor-dependent turret tests refuse to run and hardware/flight recording skips it. Does not
+     * disable the drivetrain pinpoint or Axon analog feedback.
+     */
+    public boolean turn_pinpoint_enabled;
+
+    public static final class DualPosition {
+      /** Enable/disable this subsystem, controller, watchdog, or feature. */
+      public boolean enabled;
+
+      /**
+       * Enable positional turret angle aiming only after checking programmed sweep, gear ratio,
+       * assembled forward reference and positive-offset CCW sign. Also requires pair_verified.
+       */
+      public boolean angle_calibrated;
+
+      /**
+       * Number of teeth on each servo pinion; used with turret_gear_teeth for the positional turret
+       * angle scale. Minimum: 1.0 Maximum: 1000.0
+       */
+      public double servo_gear_teeth;
+
+      /** Number of teeth on the driven turret gear. Minimum: 1.0 Maximum: 1000.0 */
+      public double turret_gear_teeth;
+
+      /**
+       * Actual programmed servo shaft sweep across normalized position 0..1; 360 is nominal until
+       * verified. Minimum: 1.0 Maximum: 360.0
+       */
+      public double servo_sweep_deg;
+
+      /**
+       * True if increasing the common servo offset rotates the assembled turret counterclockwise
+       * viewed from above. Verify physically before angle_calibrated.
+       */
+      public boolean positive_offset_ccw;
+
+      /**
+       * Left feedback voltage at the shared mechanical reference and left_center_position. Minimum:
+       * 0.0 Maximum: 3.3
+       */
+      public double left_reference_volts;
+
+      /**
+       * Right feedback voltage at the same mechanical reference and right_center_position. Minimum:
+       * 0.0 Maximum: 3.3
+       */
+      public double right_reference_volts;
+
+      /**
+       * Measured local increase in left analog voltage per normalized servo-position unit; no wrap
+       * is allowed within the command window. Minimum: 0.001 Maximum: 10.0
+       */
+      public double left_volts_per_position;
+
+      /**
+       * Measured local increase in right analog voltage per normalized servo-position unit; no wrap
+       * is allowed within the command window. Minimum: 0.001 Maximum: 10.0
+       */
+      public double right_volts_per_position;
+
+      /**
+       * Normalized positional turret jog rate at full manual input, limited by max_jog_offset and
+       * max_enable_sec. Minimum: 1.0E-4 Maximum: 1.0
+       */
+      public double manual_position_per_sec;
+
+      /**
+       * Time allowed for Axon analog feedback to wake after PWM enable; aiming remains false until
+       * both feedback readings are valid. Minimum: 0.0 Maximum: 2.0
+       */
+      public double feedback_startup_sec;
+
+      /**
+       * Largest accepted interval for integrating a positional turret manual jog; a longer loop gap
+       * disables PWM and requires neutral input to re-arm. Minimum: 0.01 Maximum: 0.5
+       */
+      public double max_update_gap_sec;
+    }
+
+    public DualPosition dual_position;
 
     /**
      * Maximum power limit (0.0 to 1.0) commanded to the turret CRServo. Limits maximum turret
@@ -2122,16 +2362,10 @@ public final class config {
     public double feed_release_threshold;
 
     /**
-     * Front intake power (0.0 to 1.0) when feeding SCORING ELEMENTS to the shooter. Minimum: 0.0
-     * Maximum: 1.0
+     * Single intake motor power (0.0 to 1.0) when feeding SCORING ELEMENTS to the shooter. Minimum:
+     * 0.0 Maximum: 1.0
      */
     public double feed_intake_power;
-
-    /**
-     * Transfer motor power (0.0 to 1.0) when feeding SCORING ELEMENTS to the shooter. Minimum: 0.0
-     * Maximum: 1.0
-     */
-    public double feed_transfer_power;
 
     public static final class BallDetection {
       /**
@@ -2166,6 +2400,44 @@ public final class config {
     }
 
     public BallDetection ball_detection;
+
+    public static final class TimingTuner {
+      /**
+       * Shot Timing Tuner only: manually aimed catch-area timing at shooter.constant_rpm. START
+       * spins both flywheels, then feeds when speed is ready; no turret aim or shot-table
+       * prerequisites. Measures elapsed time until the requested RPM dips and final speed recovery,
+       * without a preset duration or added timing margin. LT/STOP cancels. Saves bench results
+       * separately from the distance-calibrated autonomous table. False restores CELL-targeted
+       * distance calibration and all its aiming/solution gates.
+       */
+      public boolean bench_mode;
+
+      /**
+       * Shot Timing Tuner shooting distances from the CELL opening, in inches. Place the robot at
+       * the displayed distance before each trial.
+       */
+      public double[] distances_in;
+
+      /**
+       * Shot Timing Tuner calibration ray angle relative to the CELL opening normal, in degrees.
+       * Minimum: -180.0 Maximum: 180.0
+       */
+      public double ray_off_axis_deg;
+
+      /**
+       * Fractional adjustment of the shot timing dip threshold per stick-button press. Minimum:
+       * 0.001 Maximum: 1.0
+       */
+      public double dip_step;
+
+      /**
+       * Trigger activation threshold for the Shot Timing Tuner's retry and stop controls. Minimum:
+       * 0.0 Maximum: 1.0
+       */
+      public double trigger_threshold;
+    }
+
+    public TimingTuner timing_tuner;
     public com.qualcomm.robotcore.hardware.PIDFCoefficients pidf;
 
     /**
@@ -2454,10 +2726,10 @@ public final class config {
     public int park_update_ms;
 
     /**
-     * Transfer motor power (0.0 to 1.0) while the intake is collecting (not feeding the shooter).
-     * Minimum: 0.0 Maximum: 1.0
+     * Target power (0.0 to 1.0) for the single intake motor while collecting in TeleOp or
+     * autonomous. Minimum: 0.0 Maximum: 1.0
      */
-    public double transfer_power;
+    public double intake_power;
 
     /**
      * CELL A routine: collect POLLEN from the alliance's side-wall FLOWER after the first volley.
@@ -2476,6 +2748,52 @@ public final class config {
      * volley.
      */
     public boolean cell_b_collect_flower;
+  }
+
+  public static final class Flap {
+    /** Enable/disable this subsystem, controller, watchdog, or feature. */
+    public boolean enabled;
+
+    /**
+     * HardwareMap name of the positional flap servo; flapservo is on Expansion Hub servo port 3.
+     */
+    public String servo_name;
+
+    /**
+     * Minimum positional-servo pulse width in microseconds; Axon MK2 documented range begins at 500
+     * us. Must be below pwm_upper_us. Minimum: 500.0 Maximum: 2500.0
+     */
+    public double pwm_lower_us;
+
+    /**
+     * Maximum positional-servo pulse width in microseconds; Axon MK2 documented range ends at 2500
+     * us. Must exceed pwm_lower_us. Minimum: 500.0 Maximum: 2500.0
+     */
+    public double pwm_upper_us;
+
+    /**
+     * Programmed shaft sweep across the flap PWM range. Axon MK2 nominal 360; must match actual
+     * servo programming for degree commands to be accurate. Minimum: 1.0 Maximum: 360.0
+     */
+    public double servo_range_deg;
+
+    /**
+     * Flap UP shaft-angle target within servo_range_deg. Set horn orientation so this position
+     * raises the flap; no automatic startup command. Minimum: 0.0 Maximum: 360.0
+     */
+    public double up_angle_deg;
+
+    /**
+     * Flap DOWN shaft-angle target within servo_range_deg. The difference from up_angle_deg sets
+     * the travel, nominally 180 degrees. Minimum: 0.0 Maximum: 360.0
+     */
+    public double down_angle_deg;
+
+    /**
+     * Reverse the flap servo's command direction if its mounting requires it. Changes the physical
+     * up/down targets; verify horn alignment after changing.
+     */
+    public boolean reversed;
   }
 
   public static final class Teleop {
@@ -2500,15 +2818,10 @@ public final class config {
     public double field_centric_offset_deg;
 
     /**
-     * Target motor power (0.0 to 1.0) for the intake rollers in TeleOp. Minimum: 0.0 Maximum: 1.0
+     * Target power (0.0 to 1.0) for the single intake motor while collecting in TeleOp or
+     * autonomous. Minimum: 0.0 Maximum: 1.0
      */
     public double intake_power;
-
-    /**
-     * Transfer motor power (0.0 to 1.0) while the intake is collecting (not feeding the shooter).
-     * Minimum: 0.0 Maximum: 1.0
-     */
-    public double transfer_power;
 
     /**
      * Target flywheel power ratio (0.0 to 1.0) for manual rev command in TeleOp. Minimum: 0.0
@@ -2777,9 +3090,10 @@ public final class config {
     public int parkUpdateMs;
 
     /**
-     * Transfer motor power (0.0 to 1.0) while the intake is collecting (not feeding the shooter).
+     * Target power (0.0 to 1.0) for the single intake motor while collecting in TeleOp or
+     * autonomous.
      */
-    public double transferPower;
+    public double intakePower;
 
     /**
      * CELL A routine: collect POLLEN from the alliance's side-wall FLOWER after the first volley.
@@ -2889,9 +3203,10 @@ public final class config {
     public int parkUpdateMs;
 
     /**
-     * Transfer motor power (0.0 to 1.0) while the intake is collecting (not feeding the shooter).
+     * Target power (0.0 to 1.0) for the single intake motor while collecting in TeleOp or
+     * autonomous.
      */
-    public double transferPower;
+    public double intakePower;
 
     /**
      * CELL A routine: collect POLLEN from the alliance's side-wall FLOWER after the first volley.
@@ -2978,9 +3293,10 @@ public final class config {
     public int parkUpdateMs;
 
     /**
-     * Transfer motor power (0.0 to 1.0) while the intake is collecting (not feeding the shooter).
+     * Target power (0.0 to 1.0) for the single intake motor while collecting in TeleOp or
+     * autonomous.
      */
-    public double transferPower;
+    public double intakePower;
 
     /**
      * CELL A routine: collect POLLEN from the alliance's side-wall FLOWER after the first volley.

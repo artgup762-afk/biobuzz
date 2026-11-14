@@ -36,6 +36,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.VoltageUnit;
+import org.firstinspires.ftc.teamcode.robot.config.generated.config;
 
 /**
  * Samples every hub-connected device independently of the running OpMode, into a {@link
@@ -218,7 +219,14 @@ final class HardwareRecorder {
       device(name, "digital", hub, ch);
     }
 
-    for (GoBildaPinpointDriver p : hw.getAll(GoBildaPinpointDriver.class)) {
+    // getAll initializes I2C devices before they can be filtered. Read cached fields only;
+    // leave initialization to the owning OpMode and never touch the unplugged test sensor.
+    for (HardwareDevice hardware : hw.unsafeIterable()) {
+      if (!(hardware instanceof GoBildaPinpointDriver p)) continue;
+      if (!config.turret.turn_pinpoint_enabled && hw.getNamesOf(p).contains("turnpinpoint")) {
+        skip("turnpinpoint", "disabled by turret.turn_pinpoint_enabled");
+        continue;
+      }
       String name = nameOf(hw, p);
       Pinpoint pin = Pinpoint.of(p);
       if (pin == null) {

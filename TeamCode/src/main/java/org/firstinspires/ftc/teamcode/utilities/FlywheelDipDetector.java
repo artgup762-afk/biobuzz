@@ -53,7 +53,8 @@ public final class FlywheelDipDetector {
     boolean risingEdge = false;
     if (inDip) {
       troughVelocity = Math.min(troughVelocity, speed);
-      if (troughVelocity > 0.0 && speed >= troughVelocity * (1.0 + reboundFraction)) {
+      // A dip that reached zero must also be able to recover; zero itself is not a rebound.
+      if (speed > troughVelocity && speed >= troughVelocity * (1.0 + reboundFraction)) {
         inDip = false;
         // Re-seed where the wheel came back to, not where it was before the ball.
         baselineVelocity = speed;

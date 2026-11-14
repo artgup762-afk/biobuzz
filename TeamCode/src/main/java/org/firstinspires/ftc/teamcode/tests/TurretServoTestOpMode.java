@@ -123,9 +123,15 @@ public class TurretServoTestOpMode extends LinearOpMode {
   private double yaw;
 
   @Override
+  @SuppressWarnings("NullAway.Init") // Disabled test returns before any hardware-dependent method.
   public void runOpMode() {
     config.reload();
     OpModeUtil.reportConfig(telemetry);
+    if (!config.turret.turn_pinpoint_enabled) {
+      telemetry.addLine("Test unavailable: turret.turn_pinpoint_enabled is false.");
+      telemetry.update();
+      return;
+    }
     // get, not tryGet: a missing device fails INIT with the SDK's "unable to find" message.
     s1 = hardwareMap.get(ServoImplEx.class, "turnservo1");
     s2 = hardwareMap.get(ServoImplEx.class, "turnservo2");

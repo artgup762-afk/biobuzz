@@ -23,6 +23,7 @@ import org.firstinspires.ftc.teamcode.robot.config.generated.config;
 import org.firstinspires.ftc.teamcode.utilities.CalibrationRay;
 import org.firstinspires.ftc.teamcode.utilities.FlywheelDipDetector;
 import org.firstinspires.ftc.teamcode.utilities.OpModeUtil;
+import org.firstinspires.ftc.teamcode.utilities.ShotTimingTrial;
 
 @TeleOp(name = "Shot Timing Tuner", group = "Calibration")
 @Configurable
@@ -54,39 +55,6 @@ public class ShotTimingTunerOpMode extends LinearOpMode {
       double hoodTarget,
       double solvedRpm) {}
 
-  /** Distances (inches from RED's CELL A opening centre) the run walks through. */
-  private static final double[] CALIBRATION_DISTANCES = new double[] {24.0, 30.0, 36.0, 42.0, 48.0};
-
-  /** Same ray Ballistics Calibration uses, so the two tables describe the same shots. */
-  private static final double RAY_OFF_AXIS_DEG = -40.0;
-
-  /**
-   * Time budget for one shot, sized from what the robot actually does.
-   *
-   * <p>A ball costs the flywheel about a quarter of its speed and the controller needs well over a
-   * second to earn it back before the feed gate will re-arm, so three balls is a multi-second
-   * affair however the window is set. The cap exists to end a failed shot, not to be the answer.
-   */
-  private static final long PER_BALL_BUDGET_MS = 2000;
-
-  private static final long BASE_BUDGET_MS = 1500;
-
-  /** Added to the last ball's timestamp to get the window this distance needs. */
-  private static final int WINDOW_MARGIN_MS = 250;
-
-  /**
-   * How deep a dip has to be to count as a ball, as a fraction of the reference speed.
-   *
-   * <p>Measured, not guessed. Across 11 recorded shots on two different flywheel controllers, a
-   * real ball costs between 12.2% and 26.4% of flywheel speed, while the deepest thing that is not
-   * a ball — the wheel coasting down from its post-shot overshoot, one encoder quantum at a time —
-   * reaches 5.4%. There is nothing in between, so 9% sits in clear air with margin on both sides.
-   *
-   * <p>The old 5% default sat just under the coast-down and produced a false third ball in every
-   * single shot of both runs, which cut each measurement short before the real third ball landed.
-   */
-  private static final double DIP_STEP = 0.005;
-
   private Robot robot;
   private List<LynxModule> allHubs;
 
@@ -102,21 +70,13 @@ public class ShotTimingTunerOpMode extends LinearOpMode {
 
   private int expectedBalls;
   private int shotId = 0;
-
-  /**
-   * Whether the flywheel idles at {@code constant_rpm} between shots.
-   *
-   * <p>Idling is the normal state — it matches what auto does while following a path, and it is the
-   * only way a measurement starts from the same place a real scoring cycle does. The stop button
-   * clears this latch; without one, the previous version re-commanded idle power on every
-   * non-shooting loop, one line after stop had called {@code stopShot()}, and the wheel was back at
-   * speed before the next tick.
-   */
-  private boolean flywheelIdling = true;
+  private boolean benchMode;
 
   @Override
   public void runOpMode() throws InterruptedException {
     config.reload();
+    OpModeUtil.reportConfig(telemetry);
+    benchMode = config.shooter.timing_tuner.bench_mode;
     dipFraction = config.shooter.ball_detection.dip_fraction;
     expectedBalls = config.auto.balls_per_volley_count;
 
@@ -127,19 +87,28 @@ public class ShotTimingTunerOpMode extends LinearOpMode {
 
     MatchProfile profile = config.loadMatchProfile(Alliance.RED);
     robot = new Robot(hardwareMap, telemetry, profile);
-    CalibrationRay ray = CalibrationRay.forCell(robot.field, HiveCell.A, RAY_OFF_AXIS_DEG);
+    CalibrationRay ray =
+        CalibrationRay.forCell(
+            robot.field, HiveCell.A, config.shooter.timing_tuner.ray_off_axis_deg);
     OpModeUtil.setupTurretAndShooter(robot.turret, robot.shooter);
 
     telemetry.addLine("Shot Timing Tuner");
     telemetry.addLine("");
-    telemetry.addLine("The robot will NOT drive. Its pose is faked to each");
-    telemetry.addLine("distance. It DOES fire and the turret DOES slew.");
+    if (benchMode) {
+      telemetry.addLine("FIXED-SPEED BENCH TIMING — aim into a clear catch area before START.");
+      telemetry.addLine("Turret stays idle. Both flywheels spin up, then the intake feeds.");
+    } else {
+      telemetry.addLine("The robot will NOT drive. Its pose is faked to each");
+      telemetry.addLine("distance. It DOES fire and the turret DOES slew.");
+    }
     telemetry.addData("Load before each shot", "%d balls", expectedBalls);
-    if (!config.shooter.shot_table.calibrated) {
+    if (!benchMode && !config.shooter.shot_table.calibrated) {
       telemetry.addLine("!! Shot table not calibrated: every shot is refused. Run Ballistics");
       telemetry.addLine("!! Calibration first and set shooter.shot_table.calibrated: true.");
     }
-    OpModeUtil.reportConfig(telemetry);
+    telemetry.addLine("START begins one trial. RT retries; LT stops both motors and intake.");
+    telemetry.addLine(
+        "Time is measured from START through the last shot's recovery; LT/STOP cancels.");
     telemetry.update();
 
     waitForStart();
@@ -147,14 +116,22 @@ public class ShotTimingTunerOpMode extends LinearOpMode {
     double tableMin = Double.NEGATIVE_INFINITY;
     double tableMax = Double.POSITIVE_INFINITY;
     try {
-      ShotTable table = ShotTable.fromConfig(robot.shotController.getBallType());
-      tableMin = table.minDistance();
-      tableMax = table.maxDistance();
+      if (!benchMode) {
+        ShotTable table = ShotTable.fromConfig(robot.shotController.getBallType());
+        tableMin = table.minDistance();
+        tableMax = table.maxDistance();
+      }
     } catch (RuntimeException e) {
       // A malformed table is named on the INIT config report; shots refuse until it is fixed.
     }
     try {
-      for (double distance : CALIBRATION_DISTANCES) {
+      if (benchMode) {
+        measureEndpoint(0, true);
+        finish();
+        return;
+      }
+      boolean firstEndpoint = true;
+      for (double distance : config.shooter.timing_tuner.distances_in) {
         if (!opModeIsActive()) break;
         if (distance > ray.maxDistance()) {
           continue;
@@ -164,7 +141,8 @@ public class ShotTimingTunerOpMode extends LinearOpMode {
         // an exact 24.0 in endpoint could never fire.
         double at = Math.clamp(distance, tableMin, tableMax);
         robot.follower.setPose(Turret.robotPoseForPivot(ray.waypoint(at)));
-        measureEndpoint(at);
+        measureEndpoint(at, firstEndpoint);
+        firstEndpoint = false;
       }
       finish();
     } finally {
@@ -178,7 +156,6 @@ public class ShotTimingTunerOpMode extends LinearOpMode {
     robot.shotController.stopShot();
     robot.intake.stop();
     robot.shooter.setTargetPower(0.0);
-    flywheelIdling = false;
   }
 
   private void tick() {
@@ -188,19 +165,15 @@ public class ShotTimingTunerOpMode extends LinearOpMode {
     robot.update();
   }
 
-  private long shotBudgetMs() {
-    return BASE_BUDGET_MS + (long) expectedBalls * PER_BALL_BUDGET_MS;
-  }
-
   /** Runs one distance until a measurement is accepted or the distance is skipped. */
-  private void measureEndpoint(double distance) {
+  private void measureEndpoint(double distance, boolean startRequested) {
     FlywheelDipDetector detector = newDetector();
-    List<Integer> ballTimesMs = new ArrayList<>();
+    List<Integer> ballTimesMs = List.of();
 
     boolean shotRunning = false;
     boolean armed = false;
-    boolean everReady = false;
-    long shotStartMs = 0;
+    ShotTimingTrial trial = new ShotTimingTrial(detector, expectedBalls, 0);
+    trial.cancel();
 
     int resultFirstMs = -1;
     int resultLastMs = -1;
@@ -217,130 +190,103 @@ public class ShotTimingTunerOpMode extends LinearOpMode {
     boolean downPrev = true;
     boolean lsPrev = true;
     boolean rsPrev = true;
+    boolean rtPrev = true;
 
     while (opModeIsActive()) {
-      long nowMs = System.currentTimeMillis();
+      long nowMs = System.nanoTime() / 1_000_000;
 
-      if (gamepad1.dpad_up && !upPrev) {
-        expectedBalls = Math.min(9, expectedBalls + 1);
+      if (gamepad1.dpad_up && !upPrev && !shotRunning) {
+        expectedBalls = Math.min(config.inventory.capacity_count, expectedBalls + 1);
       }
       upPrev = gamepad1.dpad_up;
 
-      if (gamepad1.dpad_down && !downPrev) {
+      if (gamepad1.dpad_down && !downPrev && !shotRunning) {
         expectedBalls = Math.max(1, expectedBalls - 1);
       }
       downPrev = gamepad1.dpad_down;
 
       // The one control to reach for when the ball count disagrees with what you watched. The
       // "deepest dip" readout says which way to move it.
-      if (gamepad1.right_stick_button && !rsPrev) {
-        dipFraction += DIP_STEP;
+      if (gamepad1.right_stick_button && !rsPrev && !shotRunning) {
+        dipFraction += config.shooter.timing_tuner.dip_step;
       }
       rsPrev = gamepad1.right_stick_button;
 
-      if (gamepad1.left_stick_button && !lsPrev) {
-        dipFraction = Math.max(DIP_STEP, dipFraction - DIP_STEP);
+      if (gamepad1.left_stick_button && !lsPrev && !shotRunning) {
+        dipFraction =
+            Math.max(
+                config.shooter.timing_tuner.dip_step,
+                dipFraction - config.shooter.timing_tuner.dip_step);
       }
       lsPrev = gamepad1.left_stick_button;
 
       if (gamepad1.x && !xPrev && !shotRunning) {
         intakeOn = !intakeOn;
         if (intakeOn) {
-          robot.intake.run(config.teleop.intake_power, config.teleop.transfer_power);
+          robot.intake.run(config.teleop.intake_power);
         } else {
           robot.intake.stop();
         }
       }
       xPrev = gamepad1.x;
 
-      // Stop is unconditional and wins over everything, including the idle latch below. Clearing
-      // flywheelIdling in stopEverything() is what actually lets the wheel wind down.
-      if (gamepad1.left_trigger > 0.3) {
-        if (shotRunning) {
-          shotRunning = false;
-          status = "stopped by driver";
-          saveProgress();
-        }
+      boolean rightTrigger = gamepad1.right_trigger > config.shooter.timing_tuner.trigger_threshold;
+      boolean retryPressed = rightTrigger && !rtPrev;
+      rtPrev = rightTrigger;
+      boolean stopPressed = gamepad1.left_trigger > config.shooter.timing_tuner.trigger_threshold;
+
+      // STOP wins even when START/RT is requested in the same loop.
+      if (stopPressed) {
+        trial.cancel();
+        shotRunning = false;
+        startRequested = false;
         intakeOn = false;
+        status = "stopped by driver";
         stopEverything();
+      } else if ((startRequested || retryPressed) && !shotRunning) {
+        startRequested = false;
+        detector = newDetector();
+        trial = new ShotTimingTrial(detector, expectedBalls, nowMs);
+        ballTimesMs = List.of();
+        shotRunning = true;
+        armed = false;
+        intakeOn = false;
+        resultFirstMs = resultLastMs = resultWindowMs = -1;
+        resultCount = 0;
+        shotId++;
+        if (benchMode) {
+          robot.turret.setAimMode(Turret.AimMode.IDLE);
+          // Explicit manually aimed calibration shot. Match OpModes retain their solution gates.
+          robot.shotController.startShot(Shooter.constantPower(), false, false, false);
+        } else {
+          robot.shotController.startShot(Shooter.constantPower(), true);
+        }
+        status =
+            benchMode
+                ? "spinning up; intake waits for speed"
+                : "spinning up; feed waits for shot gates";
       }
 
       boolean flywheelReady = robot.shotController.isFlywheelReady();
-      everReady |= flywheelReady && !shotRunning;
-
-      if (gamepad1.right_trigger > 0.3 && !shotRunning) {
-        if (!flywheelIdling) {
-          flywheelIdling = true;
-          everReady = false;
-          status = "spinning back up";
-        } else if (!everReady) {
-          status = "still spinning up — wait for READY";
-        } else {
-          detector = newDetector();
-          ballTimesMs.clear();
-          shotRunning = true;
-          armed = false;
-          shotStartMs = nowMs;
-          intakeOn = false;
-          shotId++;
-          robot.shotController.startShot(Shooter.constantPower(), true);
-          status = "firing";
-        }
-      }
-
-      int elapsedMs = shotRunning ? (int) (nowMs - shotStartMs) : 0;
-
+      int elapsedMs = trial.elapsedMs();
       if (shotRunning) {
-        // Do not start counting until the flywheel has reached its arm window. Spin-up is one long
-        // ramp far below the eventual reference, and feeding that to the detector scores it as a
-        // fistful of phantom balls before the first real one moves.
-        if (!armed && flywheelReady) {
-          armed = true;
-          detector.reset();
-        }
-
-        // Deliberately NOT gated on the feed being on. A ball keeps moving after the intake stops
-        // — the gate shuts on the very dip the ball causes, and a ball left pressed against a
-        // spinning flywheel with no intake behind it still works its way through, just late and
-        // weak. That late ball is the one being measured. Depth is what separates a ball from
-        // noise here, not timing; see shooter.ball_detection.dip_fraction.
-        boolean ball = armed && detector.update(robot.shooter.getShooterVelocity(), nowMs);
-        if (ball) {
-          ballTimesMs.add(elapsedMs);
-        }
+        boolean ball = trial.update(robot.shooter.getShooterVelocity(), flywheelReady, nowMs);
+        armed = trial.armed();
+        elapsedMs = trial.elapsedMs();
+        ballTimesMs = trial.ballTimesMs();
         trace.add(row(shotId, distance, elapsedMs, detector, ball));
-
-        if (ballTimesMs.size() >= expectedBalls) {
+        if (trial.state() == ShotTimingTrial.State.COMPLETE) {
           shotRunning = false;
-          status = String.format(Locale.ROOT, "all %d out", expectedBalls);
-        } else if (elapsedMs >= shotBudgetMs()) {
-          shotRunning = false;
+          stopEverything();
+          resultFirstMs = ballTimesMs.get(0);
+          resultLastMs = ballTimesMs.get(ballTimesMs.size() - 1);
+          resultCount = ballTimesMs.size();
+          resultWindowMs = elapsedMs;
           status =
               String.format(
-                  Locale.ROOT,
-                  "TIMED OUT with %d of %d — pull the csv",
-                  ballTimesMs.size(),
-                  expectedBalls);
-        }
-
-        if (!shotRunning) {
-          robot.shotController.stopShot();
-          robot.intake.stop();
-          // Only a complete volley is a measurement: a timed-out one with fewer balls gives a
-          // window too short for the balls that never came out.
-          if (ballTimesMs.size() >= expectedBalls) {
-            resultFirstMs = ballTimesMs.get(0);
-            resultLastMs = ballTimesMs.get(ballTimesMs.size() - 1);
-            resultCount = ballTimesMs.size();
-            resultWindowMs = resultLastMs + WINDOW_MARGIN_MS;
-          }
+                  Locale.ROOT, "all %d detected; recovery complete; motors stopped", expectedBalls);
           saveProgress();
         }
-      }
-
-      // Single place the idle flywheel is written, and only when nothing else owns it.
-      if (!shotRunning) {
-        robot.shooter.setTargetPower(flywheelIdling ? Shooter.constantPower() : 0.0);
       }
 
       tick();
@@ -348,7 +294,6 @@ public class ShotTimingTunerOpMode extends LinearOpMode {
           distance,
           detector,
           armed,
-          everReady,
           flywheelReady,
           shotRunning,
           elapsedMs,
@@ -419,7 +364,6 @@ public class ShotTimingTunerOpMode extends LinearOpMode {
       double distance,
       FlywheelDipDetector detector,
       boolean armed,
-      boolean everReady,
       boolean flywheelReady,
       boolean shotRunning,
       int elapsedMs,
@@ -431,22 +375,25 @@ public class ShotTimingTunerOpMode extends LinearOpMode {
       boolean intakeOn,
       String status) {
 
-    telemetry.addData("DISTANCE", "%.0f in", distance);
+    if (benchMode) telemetry.addData("MODE", "Fixed-speed bench timing; manually aimed");
+    else telemetry.addData("DISTANCE", "%.0f in", distance);
     telemetry.addData("LOAD", "%d balls", expectedBalls);
+    telemetry.addData(
+        "Stop condition", "%d detected shots, then speed recovery; LT cancels", expectedBalls);
 
-    String flywheel;
-    if (!flywheelIdling) {
-      flywheel = "STOPPED — RT to spin back up";
-    } else if (everReady || flywheelReady) {
-      flywheel = "READY";
-    } else {
-      flywheel =
-          String.format(
-              Locale.ROOT,
-              "SPINNING UP  %.0f%%",
-              robot.shotController.getFlywheelVelocityRatio() * 100);
-    }
+    String flywheel =
+        !shotRunning
+            ? "STOPPED — RT starts a new trial"
+            : flywheelReady
+                ? "READY"
+                : String.format(
+                    Locale.ROOT,
+                    "SPINNING UP  %.0f%%",
+                    robot.shotController.getFlywheelVelocityRatio() * 100);
     telemetry.addData("FLYWHEEL", flywheel);
+    telemetry.addData("shooter motor", robot.shooter.getFirstMotorStatus());
+    telemetry.addData("shooter2 motor", robot.shooter.getSecondMotorStatus());
+    telemetry.addData("rightIntake motor", robot.intake.getMotorStatus());
 
     telemetry.addData(
         "SHOT",
@@ -456,7 +403,7 @@ public class ShotTimingTunerOpMode extends LinearOpMode {
     if (resultWindowMs > 0) {
       telemetry.addLine("--- result ---");
       telemetry.addData(
-          "WINDOW NEEDED", "%d ms   (config %d)", resultWindowMs, config.auto.shoot_wait_ms);
+          "MEASURED RUN TIME", "%d ms (spin-up + shots + final recovery)", resultWindowMs);
       telemetry.addData("First ball", "%d ms", resultFirstMs);
       telemetry.addData("Last ball", "%d ms   of %d balls", resultLastMs, resultCount);
       telemetry.addLine("A to accept");
@@ -470,13 +417,17 @@ public class ShotTimingTunerOpMode extends LinearOpMode {
         detector.getDeepestDipFraction() * 100,
         dipFraction * 100);
     telemetry.addData("State", armed ? (detector.isInDip() ? "DIP" : "watching") : "not armed");
-    telemetry.addData("Gate", robot.shotController.getFlywheelGateDetail());
-    telemetry.addData("Intake", intakeOn ? "LOADING" : "off");
+    telemetry.addData("Shot gate", robot.shotController.getGateReason());
+    telemetry.addData("Flywheel gate", robot.shotController.getFlywheelGateDetail());
+    telemetry.addData(
+        "Intake",
+        robot.shotController.isFeedCommanded() ? "FEEDING" : intakeOn ? "LOADING" : "off");
 
     telemetry.addLine("--------------------------------------------------");
     telemetry.addLine("RT  fire     LT  stop     X  intake");
     telemetry.addLine("A   accept   B   skip     DPad U/D  ball count");
-    telemetry.addLine("Stick clicks: dip trigger -/+ 0.5%");
+    telemetry.addData(
+        "Stick clicks: dip adjustment", "-/+ %.1f%%", config.shooter.timing_tuner.dip_step * 100);
     telemetry.update();
   }
 
@@ -504,7 +455,7 @@ public class ShotTimingTunerOpMode extends LinearOpMode {
       telemetry.addLine("========================================");
       telemetry.addData("Trace rows", trace.size());
       telemetry.addLine(
-          Environment.getExternalStorageDirectory() + "/FIRST/teamcode/shot_time_table.yaml");
+          Environment.getExternalStorageDirectory() + "/FIRST/teamcode/" + resultFileName());
       telemetry.addLine(
           Environment.getExternalStorageDirectory() + "/FIRST/teamcode/shot_timing_log.csv");
       telemetry.addData(
@@ -532,7 +483,24 @@ public class ShotTimingTunerOpMode extends LinearOpMode {
     if (!dir.exists() && !dir.mkdirs()) {
       telemetry.addData("Error", "Failed to create " + dir);
     }
-    try (FileWriter writer = new FileWriter(new File(dir, "shot_time_table.yaml"), false)) {
+    try (FileWriter writer = new FileWriter(new File(dir, resultFileName()), false)) {
+      if (benchMode) {
+        writer.write(
+            "# Manually aimed fixed-speed bench timing; not a distance-calibrated AUTO table.\n");
+        writer.write("target_ticks_per_second: " + config.shooter.constant_rpm + "\n");
+        writer.write("trials:\n");
+        for (TimingPoint p : points) {
+          writer.write(
+              String.format(
+                  Locale.ROOT,
+                  "  - {balls: %d, window_ms: %d, first_ball_ms: %d, last_ball_ms: %d}%n",
+                  p.ballCount(),
+                  p.shootWindowMs(),
+                  p.firstBallMs(),
+                  p.lastBallMs()));
+        }
+        return;
+      }
       writer.write("# Generated by Shot Timing Tuner\n");
       writer.write(
           "# Paste under auto: in config.yaml; AUTO volleys look this up by distance.\n\n");
@@ -565,6 +533,10 @@ public class ShotTimingTunerOpMode extends LinearOpMode {
     } catch (IOException e) {
       telemetry.addData("Error", "Failed to write shot time table: " + e.getMessage());
     }
+  }
+
+  private String resultFileName() {
+    return benchMode ? "shot_timing_bench.yaml" : "shot_time_table.yaml";
   }
 
   private void saveTrace() {

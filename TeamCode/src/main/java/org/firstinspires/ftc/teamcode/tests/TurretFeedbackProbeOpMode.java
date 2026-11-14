@@ -54,9 +54,15 @@ public class TurretFeedbackProbeOpMode extends LinearOpMode {
   private String phase = "hand";
 
   @Override
+  @SuppressWarnings("NullAway.Init") // Disabled test returns before any hardware-dependent method.
   public void runOpMode() throws InterruptedException {
     config.reload();
     OpModeUtil.reportConfig(telemetry);
+    if (!config.turret.turn_pinpoint_enabled) {
+      telemetry.addLine("Test unavailable: turret.turn_pinpoint_enabled is false.");
+      telemetry.update();
+      return;
+    }
     hubs = hardwareMap.getAll(LynxModule.class);
     for (LynxModule hub : hubs) {
       hub.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL);

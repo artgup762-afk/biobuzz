@@ -647,7 +647,7 @@ public class ShotController {
             solution.isValid(),
             hive.isSettled());
     if (feedCommanded) {
-      intake.feed(shooterConfig.feed_intake_power, shooterConfig.feed_transfer_power);
+      intake.feed(shooterConfig.feed_intake_power);
     } else {
       intake.stop();
     }

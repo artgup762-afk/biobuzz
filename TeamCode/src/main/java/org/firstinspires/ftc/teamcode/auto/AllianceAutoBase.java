@@ -343,7 +343,7 @@ public abstract class AllianceAutoBase<T> extends OpMode {
         instant(
             () -> {
               shooter.setTargetPower(Shooter.constantPower());
-              intake.run(1.0, config.auto.transfer_power);
+              intake.run(config.auto.intake_power);
             }),
         follow(follower, path));
   }

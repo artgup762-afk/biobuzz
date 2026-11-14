@@ -142,8 +142,50 @@ pedro:
     # Speed fraction reduced from 0.90 after 10-inch trials showed less endpoint overshoot.
     max_path_speed: 0.75
 
+# Shared Axon hardware settings for the main turret and isolated checkout.
+turret_servo_test:
+  # Expansion Hub SERVO port 4; Control Hub SERVO port 1. Ports live in the RC configuration.
+  left_servo_name: "turnservo1"
+  right_servo_name: "turnservo2"
+  left_analog_name: "turnAnalogLeft"
+  right_analog_name: "turnAnalogRight"
+  pwm_lower_us: 500.0
+  pwm_upper_us: 2500.0
+  # Holding references checked individually after shaft reassembly on 2026-11-13.
+  # Recheck after reindexing either gear; these are not calibrated turret travel limits.
+  # Both gears must remain engaged to support this turret during mounted tests.
+  left_center_position: 0.26
+  right_center_position: 0.406
+  left_reversed: false
+  right_reversed: false
+  # Nominal +/-24.576 turret degrees, 3.84 degrees per tap, at 360 shaft degrees and 64:150 gearing.
+  # Still a command window: physical angle, mechanical clearance and gear engagement need checking.
+  max_jog_offset: 0.16
+  jog_step_position: 0.025
+  max_enable_sec: 3.0
+  # Set true only after the two centers/directions are mechanically aligned and verified.
+  pair_verified: false
+
 turret:
   enabled: true
+  # Optional diagnostic sensor, currently unplugged. Main drivetrain "pinpoint" stays enabled.
+  turn_pinpoint_enabled: false
+  dual_position:
+    enabled: true
+    # Nominal scale from the owner's 64-tooth pinions and 150-tooth turret gear.
+    # Confirm programmed servo sweep, assembled forward zero and CCW sign before enabling aiming.
+    angle_calibrated: false
+    servo_gear_teeth: 64
+    turret_gear_teeth: 150
+    servo_sweep_deg: 360.0
+    positive_offset_ccw: true
+    left_reference_volts: 0.881
+    right_reference_volts: 1.360
+    left_volts_per_position: 3.10
+    right_volts_per_position: 3.15
+    manual_position_per_sec: 0.02
+    feedback_startup_sec: 0.5
+    max_update_gap_sec: 0.1
   max_power_output: 0.5
   servo_direction_inverted: false
   ks_positive: 0.0009
@@ -376,12 +418,20 @@ shooter:
   max_velocity_threshold: 1.03
   feed_release_threshold: 0.80
   feed_intake_power: 1.0
-  feed_transfer_power: 1.0
   ball_detection:
     dip_fraction: 0.09
     rebound_fraction: 0.05
     baseline_alpha: 0.03
     refractory_ms: 120
+  timing_tuner:
+    # Manually aimed catch-area test at constant_rpm; no turret movement or shot-table lookup.
+    bench_mode: true
+    distances_in: [24.0, 30.0, 36.0, 42.0, 48.0]
+    ray_off_axis_deg: -40.0
+    # Duration is measured from spin-up through all requested dips and final recovery.
+    # There is no preset trial duration or added timing margin; LT/STOP cancels.
+    dip_step: 0.005
+    trigger_threshold: 0.3
   # p = 2 kV (loop gain 2) and i = p / 2 s (2 s integral time), integrating only inside
   # integral.band_ticks. P alone (the old p = 0.3 kV) left any feedforward error almost
   # undiminished, so the wheel sat outside the 0.97-1.03 feed band whenever kS or kV was off.
@@ -486,7 +536,7 @@ auto:
   park_margin_ms: 2500
   park_reserve_ms: 3000
   park_update_ms: 250
-  transfer_power: 0.12
+  intake_power: 1.0
   # This robot cannot take POLLEN from a FLOWER, so neither routine refills. CELL A still drives
   # the FLOWER-side lane around the HIVE (without stopping) to fire any POLLEN left after the TIP
   # into CELL B.
@@ -494,12 +544,24 @@ auto:
   cell_a_second_volley: true
   cell_b_collect_flower: false
 
+# Axon MK2 flower flap, used only by TeleOp. No command at INIT/START until the first toggle.
+flap:
+  enabled: true
+  servo_name: "flapservo" # Expansion Hub servo port 3, assigned in Driver Station configuration.
+  pwm_lower_us: 500.0
+  pwm_upper_us: 2500.0
+  # Nominal full shaft sweep; verify the servo is programmed in 360-degree positional mode.
+  servo_range_deg: 360.0
+  # Keep the verified backward target; extend forward/down by 40 nominal degrees.
+  up_angle_deg: 0.0
+  down_angle_deg: 220.0
+  reversed: false
+
 teleop:
   max_speed: 1
   field_centric: false
   field_centric_offset_deg: 0
   intake_power: 1.0
-  transfer_power: 0.1
   manual_rev_power: 0.6
   eject_power: -0.6
   # Driver dpad left drives to and holds poses.<alliance>.flower. Off: this robot has no FLOWER

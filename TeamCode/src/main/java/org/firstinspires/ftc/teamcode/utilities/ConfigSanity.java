@@ -7,6 +7,8 @@ import org.firstinspires.ftc.teamcode.ballistics.ShotTable;
 import org.firstinspires.ftc.teamcode.ballistics.ShotTimeTable;
 import org.firstinspires.ftc.teamcode.records.BallType;
 import org.firstinspires.ftc.teamcode.records.BallisticsParameters;
+import org.firstinspires.ftc.teamcode.robot.DualAxonTurretTest;
+import org.firstinspires.ftc.teamcode.robot.FlowerFlap;
 import org.firstinspires.ftc.teamcode.robot.ShotController;
 import org.firstinspires.ftc.teamcode.robot.Turret;
 import org.firstinspires.ftc.teamcode.robot.config.generated.config;
@@ -24,6 +26,12 @@ public final class ConfigSanity {
   public static List<String> problems() {
     List<String> p = new ArrayList<>();
     turret(p);
+    String positionalProblem = Turret.positionalConfigurationProblem();
+    if (positionalProblem != null) p.add(positionalProblem);
+    String servoTestProblem = DualAxonTurretTest.configurationProblem();
+    if (servoTestProblem != null) p.add(servoTestProblem);
+    String flapProblem = FlowerFlap.configurationProblem();
+    if (config.flap.enabled && flapProblem != null) p.add(flapProblem);
     shooter(p);
     drive(p);
     game(p);

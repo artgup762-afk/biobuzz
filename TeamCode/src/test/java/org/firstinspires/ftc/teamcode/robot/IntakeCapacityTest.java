@@ -12,23 +12,55 @@ public class IntakeCapacityTest {
   @Test
   public void knownFullPreloadCannotBecomeUnknownJustByRequestingCollection() {
     HardwareMap map = mock(HardwareMap.class);
-    DcMotorEx front = mock(DcMotorEx.class);
-    DcMotorEx mid = mock(DcMotorEx.class);
-    when(map.get(DcMotorEx.class, "intakeFront")).thenReturn(front);
-    when(map.get(DcMotorEx.class, "intakeMid")).thenReturn(mid);
+    DcMotorEx motor = mock(DcMotorEx.class);
+    config.inventory.entry_sensor_enabled = false;
+    when(map.get(DcMotorEx.class, "rightIntake")).thenReturn(motor);
     Intake intake = new Intake(map);
+    verify(map).get(DcMotorEx.class, "rightIntake");
+    verifyNoMoreInteractions(map);
     intake.inventory().set(config.inventory.capacity_count);
-    intake.run(1.0, 0.1);
-    verify(front, never()).setPower(anyDouble());
+    intake.run(1.0);
+    verify(motor, never()).setPower(anyDouble());
     intake.periodic();
     assertTrue(intake.isBlockedByCapacity());
     assertTrue(intake.inventory().isKnown());
-    verify(front).setPower(0.0);
-    verify(mid).setPower(0.0);
+    verify(motor).setPower(0.0);
     intake.inventory().onShot();
     intake.periodic();
     assertFalse(intake.isBlockedByCapacity());
     assertFalse(intake.inventory().isKnown());
-    verify(front).setPower(1.0);
+    verify(motor).setPower(1.0);
+  }
+
+  @Test
+  public void fullInventoryStillAllowsFeedingAndEjectingThroughTheSingleWriter() {
+    HardwareMap map = mock(HardwareMap.class);
+    DcMotorEx motor = mock(DcMotorEx.class);
+    config.inventory.entry_sensor_enabled = false;
+    when(map.get(DcMotorEx.class, "rightIntake")).thenReturn(motor);
+    Intake intake = new Intake(map);
+    intake.inventory().set(config.inventory.capacity_count);
+
+    intake.feed(0.7);
+    verify(motor, never()).setPower(anyDouble());
+    intake.periodic();
+    assertFalse(intake.isBlockedByCapacity());
+    assertEquals(Intake.Mode.FEED, intake.mode());
+    verify(motor).setPower(0.7);
+
+    clearInvocations(motor);
+    intake.eject(0.6);
+    verifyNoInteractions(motor);
+    intake.periodic();
+    assertFalse(intake.isBlockedByCapacity());
+    assertEquals(Intake.Mode.EJECT, intake.mode());
+    verify(motor).setPower(-0.6);
+
+    clearInvocations(motor);
+    intake.stop();
+    verifyNoInteractions(motor);
+    intake.periodic();
+    assertFalse(intake.isRunning());
+    verify(motor).setPower(0.0);
   }
 }
